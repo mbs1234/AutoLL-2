@@ -128,15 +128,26 @@ export class LLClientWDW extends LLClient {
     prebook: true,
     timeSelect: true,
   };
-  #closedExpIds: { [dateParkId: string]: Experience['id'][] | undefined } = {};
+  #availabilityBundles: {
+    [dateParkId: string]:
+      | {
+          closedIds: Experience['id'][];
+          /** Only populated when Disney explicitly labels a tier. */
+          tiers: Map<Experience['id'], number | undefined>;
+        }
+      | undefined;
+  } = {};
 
   async experiences(park: Park, date: string): Promise<Experience[]> {
     const exps = await super.experiences(park, date);
+    const expIds = new Set(exps.map(exp => exp.id));
 
-    if (date > parkDate() || exps.length === 0) {
-      const expIds = new Set(exps.map(exp => exp.id));
+    // This endpoint is supplementary: its explicit tier labels protect the
+    // static table from seasonal changes, while its omissions let us display
+    // closed attractions. Cache per park/date so an active poller never pays
+    // this extra request more than once for the same plan.
+    if (!this.#availabilityBundles[date + park.id]) {
       const dateParkId = date + park.id;
-      if (!this.#closedExpIds[dateParkId]) {
         // Best effort, and deliberately unable to fail the call it enriches.
         //
         // The tipboard has already come back by this point; everything below
@@ -152,7 +163,13 @@ export class LLClientWDW extends LLClient {
         try {
           const { data } = await this.request<{
             tiers: {
-              experiences: { facilityId: string; isAvailable?: boolean }[];
+              /** Disney has returned both numeric and unlabeled tiers. */
+              tier?: number;
+              experiences: {
+                facilityId: string;
+                isAvailable?: boolean;
+                tier?: number;
+              }[];
             }[];
           }>({
             path: '/ea-vas/planning/api/v1/experiences/availability/bundles/experiences',
@@ -164,20 +181,31 @@ export class LLClientWDW extends LLClient {
               orderId: null,
             },
           });
-          this.#closedExpIds[dateParkId] = data.tiers.flatMap(t =>
-            t.experiences
-              .map(exp => exp.facilityId)
-              .filter(id => !expIds.has(id))
-          );
+          const tiers = new Map<Experience['id'], number | undefined>();
+          const closedIds: Experience['id'][] = [];
+          for (const group of data.tiers) {
+            for (const exp of group.experiences) {
+              if (!expIds.has(exp.facilityId)) closedIds.push(exp.facilityId);
+              // Never infer a tier from array position. An unlabeled response
+              // must leave the shipped data in control.
+              const tier = exp.tier ?? group.tier;
+              if (typeof tier === 'number') tiers.set(exp.facilityId, tier);
+            }
+          }
+          this.#availabilityBundles[dateParkId] = { closedIds, tiers };
         } catch (error) {
           // Cached as "nothing to add" so the next poll does not pay for the
           // same failure. Cleared with the rest of the day's state on reload.
           console.error(error);
-          this.#closedExpIds[dateParkId] = [];
+          this.#availabilityBundles[dateParkId] = {
+            closedIds: [],
+            tiers: new Map(),
+          };
         }
-      }
+    }
 
-      for (const id of this.#closedExpIds[dateParkId] ?? []) {
+    const bundle = this.#availabilityBundles[date + park.id];
+    for (const id of bundle?.closedIds ?? []) {
         if (expIds.has(id)) continue;
         try {
           exps.push({
@@ -188,7 +216,15 @@ export class LLClientWDW extends LLClient {
         } catch (error) {
           if (!(error instanceof InvalidId)) throw error;
         }
-      }
+    }
+
+    for (const exp of exps) {
+      const liveTier = bundle?.tiers.get(exp.id);
+      if (liveTier === undefined || liveTier === exp.tier) continue;
+      console.warn(
+        `Live tier differs for ${exp.name}: data=${exp.tier ?? 'none'}, live=${liveTier}`
+      );
+      exp.tier = liveTier;
     }
 
     return exps;

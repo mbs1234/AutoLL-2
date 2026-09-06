@@ -111,6 +111,7 @@ export function NextLL({ ref }: Partial<HomeTabProps> = {}) {
     const bound = parseBound(beforeText);
     const target: WatchTarget = {
       experienceId,
+      name: bookable.find(exp => exp.id === experienceId)?.name,
       bookThenMove: true,
       ...(bound ? { before: bound } : {}),
     };

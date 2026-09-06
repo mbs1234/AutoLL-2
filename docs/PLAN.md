@@ -78,7 +78,11 @@ obvious guard deadlocks — the hold avoids deadlock only because the better
 attraction has a drop still ahead _today_, and a date a week out has no such
 clock. Left as is by decision, 2026-09-05.
 
-**Outstanding:** Phases 2–5 (§5–§8). Section numbers below are unchanged, so an
+**Landed since this plan was written:** P2.1 (two-minute burst lead), P2.2
+(target-scoped refill windows), and P2.3 (demotion after safely observed
+non-firing schedules).
+
+**Outstanding:** the remaining Phase 2–5 items (§5–§8). Section numbers below are unchanged, so an
 item still described in the present tense there and not listed as landed above
 has not been built.
 

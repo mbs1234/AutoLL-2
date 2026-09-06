@@ -16,6 +16,13 @@ export type WatchListKey = string;
 
 export interface WatchTarget {
   experienceId: string;
+  /** Human-readable fallback when Disney does not list this ID today. */
+  name?: string;
+  /** A plan belongs to one park and one park day; absent means legacy/global. */
+  parkId?: string;
+  date?: string;
+  /** User preference within this day plan. Lower ranks are tried first. */
+  rank?: number;
   /** Earliest acceptable return time, inclusive. */
   after?: ParkTime;
   /** Latest acceptable return time, inclusive. */
@@ -81,6 +88,16 @@ export interface WatchHit {
    * user staring at a screen that says nothing happened.
    */
   inWindow: boolean;
+}
+
+/** Whether a target belongs to the park/date currently being operated. */
+export function targetApplies(
+  target: WatchTarget,
+  parkId: string,
+  date: string
+): boolean {
+  return (!target.parkId || target.parkId === parkId) &&
+    (!target.date || target.date === date);
 }
 
 /**
@@ -167,6 +184,10 @@ export function selectNewAlerts(
 
 interface StoredTarget {
   experienceId: string;
+  name?: string;
+  parkId?: string;
+  date?: string;
+  rank?: number;
   after?: string;
   before?: string;
   /**
@@ -214,6 +235,12 @@ export function loadWatchList(
     return [
       {
         experienceId: t.experienceId,
+        ...(typeof t.name === 'string' ? { name: t.name } : {}),
+        ...(typeof t.parkId === 'string' ? { parkId: t.parkId } : {}),
+        ...(typeof t.date === 'string' ? { date: t.date } : {}),
+        ...(typeof t.rank === 'number' && Number.isFinite(t.rank)
+          ? { rank: t.rank }
+          : {}),
         ...(after ? { after } : {}),
         ...(before ? { before } : {}),
         // Only a literal `true` enables booking. Anything else stored here --
@@ -237,6 +264,10 @@ export function saveWatchList(
     key,
     targets.map(t => ({
       experienceId: t.experienceId,
+      ...(t.name ? { name: t.name } : {}),
+      ...(t.parkId ? { parkId: t.parkId } : {}),
+      ...(t.date ? { date: t.date } : {}),
+      ...(typeof t.rank === 'number' ? { rank: t.rank } : {}),
       ...(t.after ? { after: String(t.after) } : {}),
       ...(t.before ? { before: String(t.before) } : {}),
       ...(t.autoBook ? { autoBook: true } : {}),

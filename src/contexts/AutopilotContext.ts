@@ -26,6 +26,8 @@ export interface BookingLogEntry {
   replacedName?: string;
   /** Error message, skip reason, or for a dry run the action rehearsed. */
   detail?: string;
+  /** Plain-language explanation of why a completed action was acceptable. */
+  reason?: string;
 }
 
 export interface AutopilotState {
@@ -77,6 +79,8 @@ export interface AutopilotState {
     bound: 'after' | 'before',
     value: string
   ) => void;
+  /** Set a user-defined priority for this target within its day plan. */
+  setTargetRank: (experienceId: string, rank?: number) => void;
   notifications: AlertPermission;
   /** The most recent alert, for showing what was found without a toast. */
   lastHit?: AutopilotHit;
@@ -145,6 +149,7 @@ export default createContext<AutopilotState>({
   togglePaused: () => undefined,
   toggleAutoSwap: () => undefined,
   setTargetWindow: () => undefined,
+  setTargetRank: () => undefined,
   notifications: 'unsupported',
   bookingLog: [],
   bookedCount: 0,

@@ -50,7 +50,10 @@ export interface DropEvent {
   kind: 'appeared' | 'earlier';
 }
 
-export type Snapshot = Map<string, { available: boolean; next?: ParkTime }>;
+export type Snapshot = Map<
+  string,
+  { available: boolean; next?: ParkTime; temporarilyDown?: boolean }
+>;
 
 /** Minutes since the park day began (4am), which orders correctly across midnight. */
 export function dayMinutes(time: ParkTime): number {
@@ -70,9 +73,38 @@ export function snapshotOf(experiences: Experience[]): Snapshot {
     snap.set(exp.id, {
       available: !!exp.flex.available,
       next: exp.flex.nextAvailableTime,
+      ...(exp.standby.unavailableReason === 'TEMPORARILY_DOWN'
+        ? { temporarilyDown: true }
+        : {}),
     });
   }
   return snap;
+}
+
+/**
+ * Watched attractions that have just reopened after a temporary closure.
+ *
+ * This is deliberately an alert signal, not a new booking trigger. A
+ * reopening often creates useful near-term inventory, but the ordinary watch
+ * and booking rules remain the only authority for spending an entitlement.
+ */
+export function detectReopenings(
+  prev: Snapshot,
+  next: Snapshot,
+  watchedIds: ReadonlySet<string>
+): string[] {
+  const reopened: string[] = [];
+  for (const [id, current] of next) {
+    const previous = prev.get(id);
+    if (
+      watchedIds.has(id) &&
+      previous?.temporarilyDown === true &&
+      !current.temporarilyDown
+    ) {
+      reopened.push(id);
+    }
+  }
+  return reopened;
 }
 
 /**

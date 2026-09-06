@@ -61,6 +61,13 @@ export const RAPID_INTERVAL_MS = 600;
 export const RAPID_MIN_INTERVAL_MS = 500;
 export const APPROACH_INTERVAL_MS = 6000;
 export const IDLE_INTERVAL_MS = 45_000;
+/**
+ * Tomorrow's inventory has no reliable minute-by-minute drop schedule, but
+ * earlier-return releases are common during daytime. This remains deliberately
+ * slower than a day-of drop burst and is used only while the user is actively
+ * watching targets for tomorrow.
+ */
+export const TOMORROW_INTERVAL_MS = 15_000;
 
 export interface CadenceInput {
   /** Current park time, ideally drift-corrected -- see `syncedParkTime()`. */
@@ -85,6 +92,8 @@ export interface CadenceInput {
    * person is watching it.
    */
   rapid?: boolean;
+  /** A deliberate tomorrow watch, paced for cancellation/earlier-time releases. */
+  tomorrow?: boolean;
   /**
    * Every moment a booking window opens, from `LLClient.nextBookTimes`.
    *
@@ -144,8 +153,12 @@ export function cadence({
   refillWindows = [],
   nextBookTimes = [],
   rapid = false,
+  tomorrow = false,
 }: CadenceInput): Cadence {
   if (rapid) return { mode: 'burst', intervalMs: RAPID_INTERVAL_MS };
+  if (tomorrow && now.hour >= 7 && now.hour < 22) {
+    return { mode: 'approach', intervalMs: TOMORROW_INTERVAL_MS };
+  }
   // Defaulting to empty arrays rather than testing for undefined keeps the
   // instantaneous target sources symmetrical below.
   const targets = [...dropTimes, ...nextBookTimes];

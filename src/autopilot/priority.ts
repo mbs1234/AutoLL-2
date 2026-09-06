@@ -44,7 +44,11 @@ export function comparePriority(a: Ranked, b: Ranked): number {
  * the decision.
  */
 export function orderByPriority(hits: WatchHit[]): WatchHit[] {
-  return [...hits].sort((a, b) => comparePriority(a.experience, b.experience));
+  return [...hits].sort(
+    (a, b) =>
+      (a.target.rank ?? Infinity) - (b.target.rank ?? Infinity) ||
+      comparePriority(a.experience, b.experience)
+  );
 }
 
 export interface ArmedExperience {
@@ -82,12 +86,13 @@ export function shouldHoldTierSlot(
   // which LLTracker sets for redeemed attractions.
   if (redeemedToday) return false;
   if (!isTier1(candidate.experience)) return false;
-  const candidateRank = candidate.experience.priority || Infinity;
+  const candidateRank =
+    candidate.target.rank ?? candidate.experience.priority ?? Infinity;
   return armed.some(
-    ({ experience }) =>
+    ({ target, experience }) =>
       experience.id !== candidate.experience.id &&
       isTier1(experience) &&
-      (experience.priority || Infinity) < candidateRank &&
+      (target.rank ?? experience.priority ?? Infinity) < candidateRank &&
       hasUpcomingDrop(experience.dropTimes, now)
   );
 }

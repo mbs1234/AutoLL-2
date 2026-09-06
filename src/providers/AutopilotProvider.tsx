@@ -44,6 +44,7 @@ import {
   appendDropEvents,
   coverageKey,
   detectDropEvents,
+  detectReopenings,
   loadCoverage,
   loadDropEvents,
   recordCoverage,
@@ -81,6 +82,7 @@ import {
   parseBound,
   saveWatchList,
   selectNewAlerts,
+  targetApplies,
 } from '@/autopilot/watchlist';
 import AutopilotContext, {
   AutopilotHit,
@@ -91,7 +93,13 @@ import ClientsContext from '@/contexts/ClientsContext';
 import ExperiencesContext from '@/contexts/ExperiencesContext';
 import ParkContext from '@/contexts/ParkContext';
 import PlansContext from '@/contexts/PlansContext';
-import { ParkTime, formatDate, formatTime, parkDate } from '@/datetime';
+import {
+  ParkTime,
+  formatDate,
+  formatTime,
+  modifyDate,
+  parkDate,
+} from '@/datetime';
 import { now as syncedNow } from '@/timesync';
 
 /**
@@ -380,12 +388,17 @@ export default function AutopilotProvider({
             name,
             at: syncedParkTime(),
             ...(outcome.status === 'booked'
-              ? { status: 'booked' as const, returnTime: outcome.returnTime }
+              ? {
+                  status: 'booked' as const,
+                  returnTime: outcome.returnTime,
+                  reason: 'eligible guests and an acceptable return time',
+                }
               : outcome.status === 'modified'
                 ? {
                     status: 'modified' as const,
                     fromTime: outcome.from,
                     returnTime: outcome.to,
+                    reason: 'a meaningfully earlier acceptable return time',
                   }
                 : outcome.status === 'swapped'
                   ? {
@@ -393,6 +406,8 @@ export default function AutopilotProvider({
                       replacedName: outcome.replaced.name,
                       fromTime: outcome.replaced.time,
                       returnTime: outcome.to,
+                      reason:
+                        'a higher-priority target replaced the lowest-ranked held reservation',
                     }
                   : outcome.status === 'dry-run'
                     ? {
@@ -421,6 +436,9 @@ export default function AutopilotProvider({
     // spent booking another. Same reasoning as `currentPlans` below.
     const date = bookingDateRef.current;
     const forToday = date === parkDate();
+    const activeTargets = targetsRef.current.filter(target =>
+      targetApplies(target, park.id, date)
+    );
 
     // Let this reject: the poller needs the failure to drive backoff.
     const experiences = await pollExperiences();
@@ -432,6 +450,11 @@ export default function AutopilotProvider({
       const observedAt = syncedParkTime();
       const obsDate = date;
       const next = snapshotOf(experiences);
+      const reopened = detectReopenings(
+        snapshotRef.current,
+        next,
+        new Set(activeTargets.map(target => target.experienceId))
+      );
       const events = detectDropEvents(
         snapshotRef.current,
         next,
@@ -439,6 +462,15 @@ export default function AutopilotProvider({
         obsDate
       );
       snapshotRef.current = next;
+      for (const id of reopened) {
+        const experience = experiences.find(exp => exp.id === id);
+        if (!experience) continue;
+        fireAlert({
+          title: `${experience.name} reopened`,
+          body: 'Availability can return quickly after a reopening.',
+          tag: `autoll2-reopened-${obsDate}-${id}`,
+        });
+      }
       const cov = recordCoverage(
         coverageRef.current,
         coverageKey(park.id, obsDate),
@@ -553,13 +585,13 @@ export default function AutopilotProvider({
     // holding nothing. Once a reservation exists, the original target (with
     // its window) governs the modify step. The effective target is what
     // matching and booking see; the real one is looked up for moving.
-    const effectiveTargets = targetsRef.current.map(target =>
+    const effectiveTargets = activeTargets.map(target =>
       target.bookThenMove && !heldToday(target.experienceId)
         ? { ...target, after: undefined, before: undefined }
         : target
     );
     const realTarget = (experienceId: string) =>
-      targetsRef.current.find(t => t.experienceId === experienceId);
+      activeTargets.find(t => t.experienceId === experienceId);
 
     const hits = matchWatchList(experiences, effectiveTargets);
     const { toAlert, alerted } = selectNewAlerts(hits, alertedRef.current);
@@ -606,7 +638,7 @@ export default function AutopilotProvider({
     // not already held. The tier hold has to reason about attractions that
     // have *not* become available yet, so it cannot work from `hits` alone,
     // and an attraction already booked is no reason to hold anything back.
-    const armed = targetsRef.current.flatMap(target => {
+    const armed = activeTargets.flatMap(target => {
       // Pausing an attraction says "not now", so it must not hold a slot back
       // for itself either.
       if (target.paused) return [];
@@ -906,7 +938,7 @@ export default function AutopilotProvider({
     // having it cached removes a third of the round trips from the moment a
     // drop lands. Limiting it to auto-book targets bounds the extra requests,
     // and prewarmGuests skips anything already warm.
-    const toWarm = targetsRef.current
+    const toWarm = activeTargets
       .filter(
         t =>
           !t.paused &&
@@ -953,11 +985,15 @@ export default function AutopilotProvider({
   // when it can help one of the attractions the user chose, but would waste
   // battery and requests if merely being in the same park enabled it.
   const refillWindows = useMemo(() => {
-    const watched = new Set(targets.map(target => target.experienceId));
+    const watched = new Set(
+      targets
+        .filter(target => targetApplies(target, park.id, bookingDate))
+        .map(target => target.experienceId)
+    );
     return experiences.flatMap(exp =>
       watched.has(exp.id) ? (exp.refillWindows ?? []) : []
     );
-  }, [experiences, targets]);
+  }, [experiences, targets, park.id, bookingDate]);
 
   // Drops and the next-booking window are day-of phenomena. When the user is
   // watching a future date -- improving pre-booked selections before the trip
@@ -965,6 +1001,7 @@ export default function AutopilotProvider({
   // policy sees no targets and stays at its slow, steady rate. Availability
   // on future dates comes from cancellations, which have no schedule.
   const watchingToday = bookingDate === parkDate();
+  const watchingTomorrow = bookingDate === modifyDate(parkDate(), 1);
   const status = usePoller({
     enabled,
     onTick,
@@ -973,6 +1010,7 @@ export default function AutopilotProvider({
     // Set as a side effect of ll.experiences(), so it is current as of the
     // last poll. Read fresh each tick by usePoller.
     nextBookTimes: watchingToday ? ll.nextBookTimes : undefined,
+    tomorrow: watchingTomorrow,
     rapid,
   });
 
@@ -1043,29 +1081,51 @@ export default function AutopilotProvider({
    * so an empty experience list means the question cannot be answered yet.
    */
   const targetsHere = useMemo(() => {
-    if (experiences.length === 0) return targets;
+    const active = targets.filter(target =>
+      targetApplies(target, park.id, bookingDate)
+    );
+    if (experiences.length === 0) return active;
     const here = new Set(experiences.map(exp => exp.id));
-    return targets.filter(t => here.has(t.experienceId));
-  }, [targets, experiences]);
+    return active.filter(t => here.has(t.experienceId));
+  }, [targets, experiences, park.id, bookingDate]);
 
   // Reads `targets` rather than the ref: a stable identity over a ref would
   // never re-render a watch toggle when the list changed.
   const isWatched = useCallback(
     (experienceId: string) =>
-      targets.some(t => t.experienceId === experienceId),
-    [targets]
+      targets.some(
+        t =>
+          t.experienceId === experienceId &&
+          targetApplies(t, park.id, bookingDate)
+      ),
+    [targets, park.id, bookingDate]
   );
 
   const addTarget = useCallback((target: WatchTarget) => {
+    const scoped = {
+      ...target,
+      parkId: target.parkId ?? park.id,
+      date: target.date ?? bookingDate,
+    };
     setTargets(prev => [
-      ...prev.filter(t => t.experienceId !== target.experienceId),
-      target,
+      ...prev.filter(
+        t =>
+          t.experienceId !== scoped.experienceId ||
+          !targetApplies(t, park.id, bookingDate)
+      ),
+      scoped,
     ]);
-  }, []);
+  }, [park.id, bookingDate]);
 
   const removeTarget = useCallback((experienceId: string) => {
-    setTargets(prev => prev.filter(t => t.experienceId !== experienceId));
-  }, []);
+    setTargets(prev =>
+      prev.filter(
+        t =>
+          t.experienceId !== experienceId ||
+          !targetApplies(t, park.id, bookingDate)
+      )
+    );
+  }, [park.id, bookingDate]);
 
   const replaceTargets = useCallback((next: WatchTarget[]) => {
     setTargets(next);
@@ -1074,20 +1134,24 @@ export default function AutopilotProvider({
   const toggleAutoBook = useCallback((experienceId: string) => {
     setTargets(prev =>
       prev.map(t =>
-        t.experienceId === experienceId ? { ...t, autoBook: !t.autoBook } : t
+        t.experienceId === experienceId && targetApplies(t, park.id, bookingDate)
+          ? { ...t, autoBook: !t.autoBook }
+          : t
       )
     );
-  }, []);
+  }, [park.id, bookingDate]);
 
   const toggleFlag = useCallback(
     (experienceId: string, flag: 'bookThenMove' | 'paused' | 'autoSwap') => {
       setTargets(prev =>
         prev.map(t =>
-          t.experienceId === experienceId ? { ...t, [flag]: !t[flag] } : t
+          t.experienceId === experienceId && targetApplies(t, park.id, bookingDate)
+            ? { ...t, [flag]: !t[flag] }
+            : t
         )
       );
     },
-    []
+    [park.id, bookingDate]
   );
 
   /**
@@ -1102,7 +1166,12 @@ export default function AutopilotProvider({
       const time = parseBound(value);
       setTargets(prev =>
         prev.map(t => {
-          if (t.experienceId !== experienceId) return t;
+          if (
+            t.experienceId !== experienceId ||
+            !targetApplies(t, park.id, bookingDate)
+          ) {
+            return t;
+          }
           const next = { ...t };
           if (time) next[bound] = time;
           else delete next[bound];
@@ -1110,18 +1179,38 @@ export default function AutopilotProvider({
         })
       );
     },
-    []
+    [park.id, bookingDate]
+  );
+
+  const setTargetRank = useCallback(
+    (experienceId: string, rank?: number) => {
+      setTargets(prev =>
+        prev.map(target => {
+          if (
+            target.experienceId !== experienceId ||
+            !targetApplies(target, park.id, bookingDate)
+          ) {
+            return target;
+          }
+          const next = { ...target };
+          if (typeof rank === 'number' && Number.isFinite(rank)) next.rank = rank;
+          else delete next.rank;
+          return next;
+        })
+      );
+    },
+    [park.id, bookingDate]
   );
 
   const toggleAutoModify = useCallback((experienceId: string) => {
     setTargets(prev =>
       prev.map(t =>
-        t.experienceId === experienceId
+        t.experienceId === experienceId && targetApplies(t, park.id, bookingDate)
           ? { ...t, autoModify: !t.autoModify }
           : t
       )
     );
-  }, []);
+  }, [park.id, bookingDate]);
 
   return (
     <AutopilotContext
@@ -1141,6 +1230,7 @@ export default function AutopilotProvider({
         togglePaused: id => toggleFlag(id, 'paused'),
         toggleAutoSwap: id => toggleFlag(id, 'autoSwap'),
         setTargetWindow,
+        setTargetRank,
         notifications,
         lastHit,
         bookingLog,

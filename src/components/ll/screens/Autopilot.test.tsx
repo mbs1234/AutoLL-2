@@ -61,6 +61,7 @@ function setup({
   const refillBudget = jest.fn();
   const setMaxActionsPerDay = jest.fn();
   const setTargetWindow = jest.fn();
+  const setTargetRank = jest.fn();
   render(
     <ParkContext value={{ park: mk, setPark: () => {} }}>
       <ExperiencesContext
@@ -94,6 +95,7 @@ function setup({
             togglePaused,
             toggleAutoSwap,
             setTargetWindow,
+            setTargetRank,
             notifications,
             requireWholeParty: false,
             setRequireWholeParty,

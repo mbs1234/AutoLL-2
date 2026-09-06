@@ -2,6 +2,7 @@ import { use, useEffect, useState } from 'react';
 
 import { Experience } from '@/api/ll';
 import { MAX_ACTIONS_PER_DAY, MIN_ACTIONS_PER_DAY } from '@/autopilot/autobook';
+import { targetApplies } from '@/autopilot/watchlist';
 import {
   DEMOTION_MIN_COVERED_DAYS,
   LEARNED_MIN_DAYS,
@@ -19,6 +20,8 @@ import Disclosure from '@/components/Disclosure';
 import Screen from '@/components/Screen';
 import { Time } from '@/components/Time';
 import AutopilotContext from '@/contexts/AutopilotContext';
+import BookingDateContext from '@/contexts/BookingDateContext';
+import ClientsContext from '@/contexts/ClientsContext';
 import ExperiencesContext from '@/contexts/ExperiencesContext';
 import ParkContext from '@/contexts/ParkContext';
 import StarIcon from '@/icons/StarIcon';
@@ -229,15 +232,18 @@ export default function Autopilot() {
     avoidOverlaps,
     setAvoidOverlaps,
     setTargetWindow,
+    setTargetRank,
     skipCounts,
     refusals,
     dropSummaries,
   } = use(AutopilotContext);
   const { experiences, unknownExperienceIds } = use(ExperiencesContext);
   const { park } = use(ParkContext);
+  const { bookingDate } = use(BookingDateContext);
+  const { ll } = use(ClientsContext);
 
   const targetFor = (experienceId: string) =>
-    targets.find(t => t.experienceId === experienceId);
+    targetsHere.find(t => t.experienceId === experienceId);
   const anyAutoBook = targets.some(t => t.autoBook);
   const anyAutoModify = targets.some(t => t.autoModify);
   const anyBookThenMove = targets.some(t => t.bookThenMove);
@@ -271,6 +277,14 @@ export default function Autopilot() {
 
   const watched = watchable.filter(exp => isWatched(exp.id));
   const unwatched = watchable.filter(exp => !isWatched(exp.id));
+  const absentTargets =
+    experiences.length === 0
+      ? []
+      : targets.filter(
+          target =>
+            targetApplies(target, park.id, bookingDate) &&
+            !experiences.some(exp => exp.id === target.experienceId)
+        );
 
   return (
     <Screen title={AUTOPILOT}>
@@ -295,6 +309,12 @@ export default function Autopilot() {
           onRefill={refillBudget}
           refusals={refusals ?? NO_REFUSALS}
         />
+        {ll.nextBookTime && (
+          <p className="mt-2 text-sm">
+            <span className="font-semibold">Next Lightning Lane:</span>{' '}
+            <Time time={ll.nextBookTime} />
+          </p>
+        )}
       </div>
 
       {dryRun && (
@@ -304,6 +324,30 @@ export default function Autopilot() {
           or swapped &mdash; but nothing will actually be booked. Turn it off
           when you are ready for it to act.
         </p>
+      )}
+
+      {absentTargets.length > 0 && (
+        <>
+          <h3>Not on today&rsquo;s list ({absentTargets.length})</h3>
+          <p className="text-sm text-gray-600">
+            These saved targets are not in the current tipboard, so Autopilot
+            cannot watch or book them today. Disney can use a seasonal version
+            or change an attraction ID.
+          </p>
+          <ul>
+            {absentTargets.map(target => (
+              <li key={target.experienceId} className="flex items-center gap-2 py-1">
+                <Button
+                  title={`Remove unavailable target ${target.experienceId}`}
+                  onClick={() => removeTarget(target.experienceId)}
+                >
+                  <StarIcon />
+                </Button>
+                <span>{target.name ?? target.experienceId}</span>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -537,6 +581,24 @@ export default function Autopilot() {
                     }
                   />
                 </div>
+                <label className="mt-1 ml-11 flex items-center gap-2 text-sm text-gray-600">
+                  Plan rank
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    aria-label={`Plan rank for ${exp.name}`}
+                    className="w-16 rounded-sm border border-gray-300 px-1 py-0.5"
+                    value={target?.rank ?? ''}
+                    onChange={e =>
+                      setTargetRank(
+                        exp.id,
+                        e.target.value === '' ? undefined : Number(e.target.value)
+                      )
+                    }
+                  />
+                  <span>lower goes first; blank uses the built-in priority</span>
+                </label>
               </li>
             );
           })}
@@ -623,7 +685,7 @@ export default function Autopilot() {
               <Button
                 title={`Watch ${exp.name}`}
                 color="bg-gray-200 text-black"
-                onClick={() => addTarget({ experienceId: exp.id })}
+                onClick={() => addTarget({ experienceId: exp.id, name: exp.name })}
               >
                 <StarIcon />
               </Button>
@@ -776,6 +838,9 @@ export default function Autopilot() {
                     <b>{entry.name}</b>
                     {entry.detail ? `: ${entry.detail}` : ''}
                   </>
+                )}
+                {entry.reason && (
+                  <span className="text-gray-600"> &mdash; {entry.reason}</span>
                 )}
               </li>
             ))}

@@ -10,6 +10,7 @@ import {
   MIN_INTERVAL_MS,
   RAPID_INTERVAL_MS,
   RAPID_MIN_INTERVAL_MS,
+  TOMORROW_INTERVAL_MS,
   backoffMs,
   cadence,
   secondsUntil,
@@ -40,6 +41,16 @@ describe('secondsUntil()', () => {
 });
 
 describe('cadence()', () => {
+  it('uses a bounded daytime cadence for an intentional tomorrow watch', () => {
+    const c = cadence({ now: at(10), tomorrow: true });
+    expect(c.mode).toBe('approach');
+    expect(c.intervalMs).toBe(TOMORROW_INTERVAL_MS);
+  });
+
+  it('does not keep a tomorrow watch warm overnight', () => {
+    expect(cadence({ now: at(23), tomorrow: true }).mode).toBe('idle');
+  });
+
   it('idles with no targets at all', () => {
     const c = cadence({ now: at(9, 0) });
     expect(c.mode).toBe('idle');

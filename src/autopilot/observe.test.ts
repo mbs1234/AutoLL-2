@@ -16,6 +16,7 @@ import {
   coverageKey,
   dayMinutes,
   detectDropEvents,
+  detectReopenings,
   fromDayMinutes,
   loadCoverage,
   loadDropEvents,
@@ -61,6 +62,28 @@ describe('day minutes', () => {
     ]) {
       expect(fromDayMinutes(dayMinutes(t))).toEqual(t);
     }
+  });
+});
+
+describe('detectReopenings()', () => {
+  it('reports watched attractions leaving a temporary closure', () => {
+    expect(
+      detectReopenings(
+        new Map([['a', { available: false, temporarilyDown: true }]]),
+        new Map([['a', { available: false }], ['b', { available: true }]]),
+        new Set(['a'])
+      )
+    ).toEqual(['a']);
+  });
+
+  it('does not report an unwatched or baseline attraction', () => {
+    expect(
+      detectReopenings(
+        new Map(),
+        new Map([['a', { available: true }]]),
+        new Set(['a'])
+      )
+    ).toEqual([]);
   });
 });
 

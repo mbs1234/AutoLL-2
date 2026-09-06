@@ -41,6 +41,8 @@ export interface PollerOptions {
   nextBookTimes?: ParkTime[];
   /** Poll flat-out, ignoring the drop schedule. */
   rapid?: boolean;
+  /** A deliberate tomorrow watch, paced for cancellation releases. */
+  tomorrow?: boolean;
 }
 
 const OFF: PollerStatus = { mode: 'off', consecutiveFailures: 0, polls: 0 };
@@ -78,11 +80,13 @@ export default function usePoller({
   const refillWindowsRef = useRef(refillWindows);
   const nextBookTimesRef = useRef(nextBookTimes);
   const rapidRef = useRef(rapid);
+  const tomorrowRef = useRef(tomorrow);
   onTickRef.current = onTick;
   dropTimesRef.current = dropTimes;
   refillWindowsRef.current = refillWindows;
   nextBookTimesRef.current = nextBookTimes;
   rapidRef.current = rapid;
+  tomorrowRef.current = tomorrow;
 
   useEffect(() => {
     if (!enabled) {
@@ -128,6 +132,7 @@ export default function usePoller({
         refillWindows: refillWindowsRef.current,
         nextBookTimes: nextBookTimesRef.current,
         rapid: rapidRef.current,
+        tomorrow: tomorrowRef.current,
       });
 
       // Keep the clock offset fresh while something is actually coming up.

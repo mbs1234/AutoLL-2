@@ -9,6 +9,7 @@ import {
   loadWatchList,
   matchWatchList,
   saveWatchList,
+  targetApplies,
   selectNewAlerts,
 } from './watchlist';
 
@@ -207,6 +208,27 @@ describe('watch list persistence', () => {
     ]);
   });
 
+  it('round-trips a named, date- and park-scoped plan target', () => {
+    saveWatchList([
+      {
+        experienceId: BZ,
+        name: 'Buzz Lightyear',
+        parkId: 'mk',
+        date: '2026-12-10',
+        rank: 1,
+      },
+    ]);
+    expect(loadWatchList()).toEqual([
+      {
+        experienceId: BZ,
+        name: 'Buzz Lightyear',
+        parkId: 'mk',
+        date: '2026-12-10',
+        rank: 1,
+      },
+    ]);
+  });
+
   // Only a literal true arms an action; anything else stored reads as off,
   // since guessing wrong means an unwanted booking.
   it('treats non-boolean flag values as off', () => {
@@ -222,5 +244,25 @@ describe('watch list persistence', () => {
   it('returns empty for a non-array value', () => {
     localStorage.setItem(WATCHLIST_KEY, JSON.stringify({ nope: true }));
     expect(loadWatchList()).toEqual([]);
+  });
+});
+
+describe('targetApplies()', () => {
+  const scoped = {
+    experienceId: BZ,
+    parkId: 'mk',
+    date: '2026-12-10',
+  };
+
+  it('keeps a plan target within its selected park and date', () => {
+    expect(targetApplies(scoped, 'mk', '2026-12-10')).toBe(true);
+    expect(targetApplies(scoped, 'epcot', '2026-12-10')).toBe(false);
+    expect(targetApplies(scoped, 'mk', '2026-12-11')).toBe(false);
+  });
+
+  it('keeps legacy targets available everywhere', () => {
+    expect(targetApplies({ experienceId: BZ }, 'mk', '2026-12-10')).toBe(
+      true
+    );
   });
 });
