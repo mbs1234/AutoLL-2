@@ -1,160 +1,160 @@
 # AutoLL-2
 
-An unofficial client for Lightning Lane Multi Pass and virtual queue boarding groups at Walt Disney World. Upstream refreshes when you tap refresh; AutoLL-2 watches for you, alerts you, and — if you arm it — books.
+AutoLL-2 is an independent, experimental browser companion for Lightning Lane Multi Pass and virtual queues at Walt Disney World. It runs inside your browser while you are on a supported Disney page, helping you view availability, keep track of plans, and—when you explicitly enable it—watch selected Multi Pass attractions.
 
-Built on two people's work, and **GPL-3.0-only** like both:
+It is designed to be useful in two ways:
 
-- **[joelface/bg1](https://github.com/joelface/bg1)** by Joel Face — the original, and everything underneath this: the Lightning Lane, virtual queue, DAS and itinerary clients, the UI, the login flow. For background, read the [upstream documentation](https://joelface.github.io/bg1/).
-- **[jgeurts/bg1](https://github.com/jgeurts/bg1)** — restores Lightning Lane booking at Walt Disney World, and adds tier grouping, availability sorting, an existing-bookings view, and offer auto-refresh.
+- **Autopilot** watches a set of attractions through the day, alerts when availability changes, and can perform only the actions you have individually armed.
+- **NextLL** is a focused, one-attraction search for when you want the earliest practical Lightning Lane right now.
 
-On top of those this repository adds Autopilot and NextLL, corrected attraction data, and the build and deploy plumbing to run independently. Deployed at **<https://mbs1234.github.io/AutoLL-2/>**.
+**Important:** AutoLL-2 is unofficial, experimental software. It is not affiliated with or endorsed by Disney, may stop working at any time, and is provided without warranty. Keep the official Disney app available and use it as the source of truth for your plans and reservations.
 
-**WARNING! Use at your own risk. This is highly experimental, for demonstration purposes only, and provided "as is" without warranty of any kind. It is in no way endorsed by or associated with the Walt Disney Company and could stop working at any time for any reason. To ensure the intended experience, always use the official Disney app.**
-
-> ### ⚠️ Booking depends on a component this repository does not maintain
->
-> Booking works here because the base from **jgeurts/bg1** sends a header Disney's bot filter requires. That component is inherited, not written or maintained here, and Disney has changed the rules around it four times since November 2025 — so treat booking as something that may stop without warning, and keep the official Disney app as your fallback.
->
-> Everything else — watching, alerting, drop learning, return-time windows, the corrected data — is independent of it and keeps working either way.
+> AutoLL-2 supports **Lightning Lane Multi Pass** and virtual queues. It does not offer a Single Pass booking workflow.
 
 ## Install
 
-1. Open <https://mbs1234.github.io/AutoLL-2/> on your phone and install the bookmarklet (or userscript).
-2. Run it on `disneyworld.disney.go.com/vas/` and sign in.
-3. On iOS, add the page to your Home Screen if you want notifications; without that you still get the chime.
+Open the [AutoLL-2 setup page](https://mbs1234.github.io/AutoLL-2/) on the phone or tablet you use in the park. It provides installation instructions for both supported options:
 
-AutoLL-2 keeps its session, party, preferences, and Autopilot state under its
-own browser-storage namespace. It does not import BG1 or AutoLL settings, so
-your first AutoLL-2 run starts with a separate sign-in and configuration.
+1. **Bookmarklet** — save the generated bookmarklet, then run it while on a supported Disney page.
+2. **Userscript** — optional. Install the listed userscript extension first, then install AutoLL-2's autoloader. It loads AutoLL-2 automatically on supported pages.
 
-## How to use
+After installation:
 
-Four tabs along the bottom: **LL** (the tipboard), **Times**, **Plans**, and **NextLL**.
+1. Open the Walt Disney World Lightning Lane page in your browser.
+2. Run the bookmarklet, or let the userscript load AutoLL-2.
+3. Sign in through the normal browser flow.
+4. Choose a park and, on the **LL** tab, choose the party AutoLL-2 should use.
 
-Start on **LL**. Choose your park and your party, then tap the **clock button** in the header to open **Autopilot** — that is where you star attractions to watch, arm what may be booked, and turn it on. The clock button is green while watching, yellow in dry run, red if it stopped after repeated errors, with a badge showing how many attractions it is watching in the loaded park.
+AutoLL-2 stores its sign-in state, saved party, preferences, watch lists, and diagnostics under its own `autoll2.*` browser-storage keys. It does not import BG1 or AutoLL settings, so the first use requires a separate sign-in and setup.
 
-Use **NextLL** instead when you are standing in the park and want one specific ride as soon as possible.
+## Before you turn anything on
 
-At a glance:
+Start with the **LL** tab:
 
-|         | Autopilot                         | NextLL                |
-| ------- | --------------------------------- | --------------------- |
-| For     | a whole day, set up in advance    | one ride, right now   |
-| Watches | as many attractions as you star   | exactly one           |
-| Checks  | every 45s, speeding up near drops | every 0.6s            |
-| Runs    | across tabs, all day              | while its tab is open |
-| Budget  | 10 actions per park day           | exempt                |
+1. Select the park and date you are working on.
+2. Let the Lightning Lane list load.
+3. Select the guests you want in your saved party.
+4. Review your current reservations on **Plans**.
+5. Open **Autopilot** with the clock button in the header, or use **NextLL** for a single ride.
 
-Both need the page **open and in the foreground** — mobile browsers throttle background timers. Autopilot holds a screen wake lock so the phone will not lock mid-drop, but switching apps still backgrounds the page.
+Mobile browsers heavily slow background tabs. Keep AutoLL-2 open and in the foreground while a watch or search is running. Autopilot requests a screen wake lock where supported, but switching apps or tabs can still pause timers.
 
-## Autopilot
+## Main features
 
-**Pacing.** Rather than a fixed rate, it adjusts to what is coming:
+### LL: availability and your party
 
-| Mode             | When                                                  | Interval |
-| ---------------- | ----------------------------------------------------- | -------- |
-| Watching         | nothing imminent                                      | ~45s     |
-| Drop approaching | within 5 min of a drop or one of your booking windows | ~6s      |
-| Checking rapidly | 30s before to 120s after a drop                       | ~1.2s    |
+The **LL** tab is the main availability list. Use it to change the park, select your party, refresh current availability, and open the Autopilot screen.
 
-Targets come from the per-attraction drop times in `src/api/data/wdw.ts` and from every booking window Disney reports for your party — their slots free at different times, and each is a moment inventory opens. The lead exists because inventory sometimes releases early; the trail because it trickles in and good times are gone within a minute. Every interval carries ±20% jitter, timed on the drift-corrected clock in `src/timesync.ts`.
+The clock button is a status indicator:
 
-**Per-attraction toggles.** Each is off by default and independent, because the risks differ.
+| Color | Meaning |
+| --- | --- |
+| Gray | Autopilot is off. |
+| Green | Autopilot is watching. |
+| Yellow | Dry run is on: it evaluates actions but does not perform them. |
+| Red | Autopilot stopped after repeated errors and needs attention. |
 
-| Toggle             | What it does                                                                                                                                                                                                               |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Auto-book**      | Books it when it appears inside your window.                                                                                                                                                                               |
-| **Auto-move**      | Moves a reservation you already hold to a better time — at least 30 minutes better, never later, never outside your window.                                                                                                |
-| **Book then move** | Books the first time offered _even outside your window_, then works it into the window. Holding something beats holding nothing. Implies both of the above.                                                                |
-| **Pause**          | Keeps watching and alerting but takes no action — use it to force a higher-priority attraction to be booked first.                                                                                                         |
-| **Swap in**        | When all three slots are full, gives up your lowest-priority reservation for this one, preferring a non-Tier-1 and never trading down. A single atomic request, so the old one is released only if the new one is secured. |
+The badge is the number of watched attractions in the currently loaded park.
 
-**Return-time window.** An earliest and latest return time per attraction. It governs what Autopilot will _take_; it deliberately does not silence alerts, so an out-of-window offer is still reported rather than hidden.
+### Times: compare return times
 
-**Ordering.** When two armed attractions appear in the same tick, the better one goes first, ranked as the LL list's **Priority** sort does. When a higher-ranked Tier 1 is armed and still has a drop ahead of it, Autopilot passes on a lesser Tier 1 rather than spend the party's Tier 1 slot — releasing that hold once the better attraction's drops have passed, or as soon as your party redeems its first Lightning Lane, since the one-Tier-1 limit only applies until then.
+Use **Times** to inspect available return times for the selected park. It is useful for deciding which attraction to pursue before adding it to a watch list or starting a NextLL search.
 
-**Dry run.** Everything except acting: it watches, alerts, checks eligibility and applies every guard, then logs _"would have booked Slinky Dog Dash for 11:05 AM"_. The recommended way to spend a first park day with it. Deliberately loud — yellow banner, yellow header button — because a forgotten dry run looks exactly like a broken booker.
+### Plans: check what you already hold
 
-**Whole party only.** Off by default, matching how booking by hand works: Autopilot books for whoever is eligible. Turn it on and it acts only when everyone in your saved party is eligible.
+Use **Plans** to review Lightning Lanes and other itinerary items. Autopilot can use this information to avoid a return time that overlaps an existing reservation, including dining.
 
-**Avoid clashes.** On by default. Autopilot refuses a return time landing on top of a reservation you already hold, dining included — checked before the offer is requested and again on the offer's real time. Booking by hand only warns about this; Autopilot has nobody to warn.
+### Autopilot: watch several attractions
 
-**Alerts** are edge-triggered per attraction: one when it becomes available, silence while it stays, eligible again once it goes away and returns.
+Open Autopilot with the clock button on the LL tab. First, star the Multi Pass attractions you want it to watch. Watching alone only checks and alerts; it does not authorize any booking or modification.
 
-### Safety limits
+For each watched attraction, choose the actions you want:
 
-- **Ten actions per park day,** settable from 1 to 50. Bookings, moves and swaps share one budget, so a matching bug cannot burn a day of Lightning Lanes. Persisted, so it survives a reload and turning Autopilot off and on. When it runs out Autopilot keeps watching and alerting, and offers a top-up rather than stopping quietly. A new park day starts clean.
-- **One attempt per attraction per action,** recorded _before_ the request goes out — a timed-out request may have succeeded, so retrying is the dangerous option. A rejection Disney actually returned is different: nothing happened, so the lock comes back after a 20-second wait. **Booking is a further exception:** Disney lets you book, cancel and rebook, and only _redeeming_ is once per day, so a booking lock lifts once the itinerary has shown the reservation and then shown it gone.
-- **An unsettled booking holds a slot.** A request that never returned may still have landed, so it counts against the allowance until plans settle it. The cap bounds Lightning Lanes _possibly_ spent.
-- **An empty cache** each time you turn Autopilot on, so a stale eligibility result cannot drive a booking. The day's spend is deliberately _not_ reset with it.
-- **Arming persists, running does not.** Choices and the day's budget are saved; Autopilot itself is always off after a reload.
-- **The offer's real time is re-checked** before booking — the tipboard advertises one time and the offer can come back later. An offer outside your window is abandoned.
+| Control | What it does |
+| --- | --- |
+| **Auto-book** | Books the attraction when it becomes available inside its return-time window. |
+| **Auto-move** | Tries to improve a reservation you already hold. A move must be at least 30 minutes earlier, never later, and inside the window. |
+| **Book then move** | Takes the first available time, even if it is outside the window, then tries to move it into the window. It implies Auto-book and Auto-move. |
+| **Pause** | Continues watching and alerting, but prevents actions for that attraction. |
+| **Swap in** | If all Multi Pass slots are occupied, may replace a lower-priority held reservation for this attraction. |
 
-### Before your trip
+#### Return-time windows
 
-Pick a later date in the LL tab and Autopilot works on that day instead of today — **booking as well as moving**. The scenario it wins: you buy Multi Pass at the 7-day window with one selection because the headliners were gone, and Autopilot fills slots 2 and 3 overnight from cancellations.
+Each watched attraction can have an **earliest** and **latest** acceptable return time. Leave either field empty for no bound on that side.
 
-Everything deciding an action is scoped to the day being worked on. Three facts that are only ever about _today_ are fenced off from it: whether an attraction has been ridden, whether the party has redeemed anything, and the drop schedule governing the Tier 1 hold. Alerts name the date when it is not today and are keyed by it. A future date polls at the slow steady rate, since cancellations have no schedule.
+The window controls what Autopilot will take, move to, or swap for. It does not hide alerts: an outside-window time can still be useful information.
 
-### Learning and diagnostics
+#### Global Autopilot settings
 
-**Drop and refill timing.** The built-in schedule has both short, known drop times and longer refill windows for specific high-demand attractions. Autopilot begins its rapid drop check two minutes early; inside a refill window it uses the slower six-second approach cadence. Refill windows are used only when you are watching the matching attraction, not simply because you are in its park. Autopilot also watches at up to one-second resolution and records when availability _actually_ appears. A drop is an attraction becoming available, or its earliest return time jumping ≥15 minutes earlier. It also records **when it was watching**, so a scheduled time reads _"seen 2 of 2 watched days"_, or in red _"seen 0 of 3"_ — real evidence the schedule is wrong — or _"not watched yet"_, which says nothing. A scheduled time with zero sightings across three fully watched days is shown as demoted and is no longer used for rapid checking; evidence is scoped to the park, so one park can never affect another. Seen on **two or more distinct days** and it is added to the times Autopilot bursts for. Kept 30 days.
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| **Dry run** | Off | Rehearses every check and records what it would do, but does not book, move, or swap. Use this first. |
+| **Whole party only** | Off | Requires every guest in the saved party to be eligible before AutoLL-2 acts. With it off, it may act for the eligible guests. |
+| **Avoid clashes** | On | Refuses a return time that overlaps an existing reservation or dining plan. |
+| **Actions per day** | 10 | Daily cap shared by bookings, moves, and swaps. Adjustable from 1 to 50; AutoLL-2 continues watching after the cap is reached. |
 
-**Why nothing was booked.** Skips are counted rather than logged — during a drop they happen every second — and ranked: _"7× not everyone in the party was eligible"_.
+Autopilot's running state is intentionally not restored after a reload. Its watch list and settings are saved, but you must turn it on again.
 
-**Refused requests.** If Disney refuses the booking calls outright — a 403, what the bot filter returns — the screen says so and names which call. It waits for three refusals spanning at least a minute, and a single success clears it. This matters because a refusal lands on _eligibility_, one step before an offer exists: without it, Autopilot keeps polling, alerting and learning while silently never acting.
+#### How Autopilot checks
 
-**Slow checking.** A failed check backs the poller off — 2s, 4s, up to 60s — and stops it after eight. The screen now says so while it is happening, with the error, so a backing-off Autopilot cannot be mistaken for an idle one.
+Autopilot uses one coordinated polling loop rather than separate timers per screen. It checks slowly when nothing is near, speeds up around known release times and your party's booking windows, and uses a moderate refill-window cadence for selected high-demand attractions.
 
-**Activity log** and **unknown attractions** round it out: what was booked, moved, swapped or failed for the rest of the park day, and a notice if Disney's tipboard lists a facility ID this build does not know (otherwise dropped in silence — no row, no alert, no booking).
+The built-in schedule also learns from local observations. A newly observed recurring drop can be added after it appears on two different park days. Conversely, a scheduled time is demoted only after AutoLL-2 watched it on three park-specific days without observing a drop. The **Learned drop times** panel shows this evidence.
 
-## NextLL
+If repeated checks fail, AutoLL-2 backs off progressively and stops after eight consecutive failures rather than continuing indefinitely. The status area names the error when available.
 
-The fourth tab. One attraction, one goal, one button: pick a ride, optionally say "return by", tap **Find it**. It takes the first Lightning Lane it can get and then keeps trying to move it earlier.
+### NextLL: pursue one attraction now
 
-The same engine underneath — `book then move` with a single target — but none of the levers, because at 7am with one hand the levers are the problem. It shares the saved party with the LL tab and carries its own park selector. Three deliberate differences from Autopilot:
+Use **NextLL** when you want one attraction rather than a day-long watch list.
 
-- **It polls hard.** Every 0.6s, twice a drop burst — there is no drop schedule to pace against when you are waiting for someone else to cancel. Not faster: the client's rate limit throws rather than throttles, and the cooldown would land at the worst moment.
-- **It ignores the day's action budget.** One named attraction with somebody standing over it is bounded by its own shape, and a morning of Autopilot should not silently disable an afternoon search.
-- **It moves a reservation as often as it can improve it,** where Autopilot allows one move per attraction per session to stop it thrashing. Every move must still clear the 30-minute bar.
+1. Open **NextLL**.
+2. Choose the park and attraction.
+3. Optionally set **Return by** to set the latest acceptable return time.
+4. Tap **Find it**.
 
-Its watch list is stored separately, so a search does not disturb what Autopilot is watching. Leaving the tab stops the search — a bookmarklet cannot keep a 0.6s loop alive behind a backgrounded page anyway — but not silently: the goal is remembered for the park day, and coming back offers **Resume** in one tap.
+NextLL takes the first practical Lightning Lane it finds, then keeps trying to move it earlier until the target is met or you stop it. It uses your saved party from the LL tab, has its own separate watch list, and does not consume Autopilot's daily action budget.
 
-## Other details
+Leaving the NextLL tab stops its active search because a browser page cannot reliably keep its rapid timer alive in the background. When you return, it offers to resume the saved search.
 
-**Multi Pass only, by design.** Matching reads the `flex` field and BG1 has no Single Pass booking flow, so TRON, Rise of the Resistance, Seven Dwarfs Mine Train, Guardians and Flight of Passage are deliberately not watchable.
+## Recommended first use
 
-**Faster booking.** Booking costs three sequential requests: eligibility, offer, book. Eligibility is the only one that does not change second to second, so it is fetched in advance for armed attractions and cached — a third of the round trips gone from the moment a drop lands. The cache clears after any booking, since party, tier and overlap limits shift eligibility for everything at once.
+1. Configure your party and star only one or two attractions.
+2. Set realistic return-time windows.
+3. Turn on **Dry run**.
+4. Keep the page open while you observe the status, alerts, skip reasons, and activity log.
+5. When the behavior matches your expectations, turn Dry run off and enable only the per-attraction actions you actually want.
 
-**Corrected attraction data.** Disney re-issues a facility ID when a ride is re-themed, and an unknown ID is dropped silently — Rock 'n' Roller Coaster Starring The Muppets, Soarin' Across America and Disney Jr. Mickey Mouse Clubhouse Live! were all invisible, two of them headliners. Zootopia and Moana pointed at the wrong park, so a held Zootopia pass made Autopilot poll EPCOT on an Animal Kingdom day. Priorities were re-ranked where the published order had moved on, and drop times added for Tiana's Bayou Adventure and Expedition Everest, cross-checked against TouringPlans, WDWMagic observer logs and BlogMickey.
+The **Why nothing was booked** section groups common guard reasons, such as an unavailable party member, an overlap, an exhausted action budget, or a time outside the configured window.
 
-**Correctness fixes worth knowing about.** Fully-redeemed passes no longer count against your three slots, so the first tap-in of the day no longer makes Autopilot swap instead of book. Booking locks release on evidence rather than at session end, so cancelling a late return time by hand no longer forfeits an earlier one. All of Disney's booking windows are paced for, not just the first. Cached eligibility clears whenever what the party holds changes, however it changed. A Multiple Experiences Pass no longer reads as a 100-minute reservation that blocks every booking in that band. `RateLimit` no longer latches permanently on the first violation. The usage ping is disabled.
+## Troubleshooting
 
-`src/timesync.ts` and `src/api/livedata.ts` still call `bg1.joelface.com` deliberately: clock correction, and show times unavailable through Disney's tipboard.
+| Symptom | What to check |
+| --- | --- |
+| Nothing is loading | Confirm you launched AutoLL-2 from a supported Disney page, then refresh and sign in again if needed. |
+| Autopilot appears slow | Keep the tab foregrounded. Check its status for a backoff message or a stopped state. |
+| It watches but does not act | Check Dry run, paused targets, return-time windows, whole-party eligibility, clashes, and the daily action budget. |
+| NextLL stopped | It stops when you leave its tab. Return to NextLL and choose **Resume**. |
+| A ride is missing | Refresh the LL list. If Disney's tipboard contains an unknown attraction ID, AutoLL-2 displays an unknown-attraction notice. |
 
-**Development.**
+## Development
 
 ```bash
 npm ci
-npm run checkall      # tests, lint, typecheck
-npm run test:ci       # tests, excluding suites already broken upstream
-npm run build:fork    # vite build, keeping the diu stub
-npm start             # dev server
+npm run checkall      # tests, lint, and typecheck
+npm run test:ci       # CI test suite
+npm run build:fork    # production bundle
+npm start             # development server
 ```
 
-Upstream ships a red test suite — 8 suites fail in a clean checkout of upstream `mickey`, mostly stale fixtures. CI gates on `test:ci` so it stays a useful signal, and runs the full suite for visibility. See **[FORK.md](FORK.md)** for the exclusion list, the booking history and how to sync upstream, and **[docs/PLAN.md](docs/PLAN.md)** for the research behind the data corrections and what is planned next. Pushing to `main` builds and deploys to GitHub Pages, merging in the static pages from `goofy`.
+The source branch is `main`; the independent installer assets are maintained on `goofy`. GitHub Pages publishes the combined build at <https://mbs1234.github.io/AutoLL-2/>.
 
-## Acknowledgments
+See [FORK.md](FORK.md) for project structure and upstream synchronization notes, and [docs/PLAN.md](docs/PLAN.md) for the feature roadmap and research notes.
 
-First and foremost **[Joel Face](https://github.com/joelface)**, who wrote BG1. This fork is a small addition to a large amount of his work.
+## License and acknowledgments
 
-Upstream's acknowledgments, preserved:
+AutoLL-2 is **GPL-3.0-only** and builds on:
 
-- **Len Testa:** For helping me get as close as I could ever reasonably expect to accomplish a not very serious childhood dream of almost being an Imagineer. Also for creating [Touring Plans](https://touringplans.com/), which is pretty rad.
-- **Barry, Stacy, Jeff, Michelle, Jim, Stuart, Bob, Kimberly, Milissa, Jennifer, Erin & Erin, Kristina, Lemonia, Scott, Jorge, Phil, Kellianne, Joshua, Brandon, Megan, Jennifer, Gary, Alexander, and others:** For helping me test and improve BG1.
-- **Arialvetica:** For creating the awesome BG1 logo.
-- **[ThemeParks.wiki](https://themeparks.wiki/):** For the free API used for showtime data not available via Disney's tipboard.
-- **[Thrill Data](https://www.thrill-data.com/):** For providing data used to help determine Lightning Lane priorities.
-- **[IcoMoon](https://icomoon.io/#icons-icomoon):** For the free icons, provided under a [Creative Commons license](https://creativecommons.org/licenses/by/4.0/).
+- [joelface/bg1](https://github.com/joelface/bg1) by Joel Face, the original project and underlying Lightning Lane, virtual queue, DAS, itinerary, UI, and login work.
+- [jgeurts/bg1](https://github.com/jgeurts/bg1), which contributed the WDW booking restoration and related improvements used by this fork.
 
-For this fork additionally: **[ThemeParks.wiki](https://themeparks.wiki/)** for the live facility IDs that surfaced the three stale ones, and **[TouringPlans](https://touringplans.com/)**, **WDWMagic** forum observers and **BlogMickey** for the drop-time reports.
+Thanks also to the upstream contributors and testers, including Len Testa, TouringPlans, ThemeParks.wiki, Thrill Data, WDWMagic observers, BlogMickey, Arialvetica, and IcoMoon. Their work and public resources helped make this project possible.
