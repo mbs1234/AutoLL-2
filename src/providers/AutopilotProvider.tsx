@@ -453,12 +453,7 @@ export default function AutopilotProvider({
       if (events.length > 0 || cov.changed) {
         const all = appendDropEvents(events);
         setDropSummaries(
-          summarizeDrops(
-            all,
-            coverageRef.current,
-            park.dropSchedule,
-            park.id
-          )
+          summarizeDrops(all, coverageRef.current, park.dropSchedule, park.id)
         );
       }
     }

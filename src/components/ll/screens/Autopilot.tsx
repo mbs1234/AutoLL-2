@@ -679,7 +679,7 @@ export default function Autopilot() {
                           {c.coveredDays === 0
                             ? '(not watched yet)'
                             : c.coveredDays >= DEMOTION_MIN_COVERED_DAYS &&
-                                c.observedDays === 0
+                              c.observedDays === 0
                               ? `(not used after ${c.coveredDays} watched days)`
                             : `(seen ${c.observedDays} of ${c.coveredDays} watched)`}
                         </span>

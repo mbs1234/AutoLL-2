@@ -515,6 +515,7 @@ export class ItineraryClient extends ApiClient {
           color: '',
           theme: DEFAULT_THEME,
           dropTimes: [],
+          dropSchedule: new Map(),
         };
       }
       throw error;

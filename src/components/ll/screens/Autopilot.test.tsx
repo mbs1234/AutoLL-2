@@ -613,7 +613,7 @@ describe('Autopilot screen learned drops', () => {
     });
     open('Learned drop times');
     expect(screen.getByText(/seen 2 of 2 watched/)).toBeVisible();
-    const missing = screen.getByText(/seen 0 of 3 watched/);
+    const missing = screen.getByText(/not used after 3 watched days/);
     expect(missing).toBeVisible();
     expect(missing).toHaveClass('text-red-700');
     expect(screen.getByText(/not watched yet/)).toBeVisible();

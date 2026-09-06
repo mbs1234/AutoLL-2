@@ -118,9 +118,7 @@ export class Resort {
         .map(t => t[1])
         .sort();
       park.dropSchedule = new Map(
-        this.dropExpsByPark
-          .get(park)
-          ?.map(exp => [exp.id, exp.dropTimes ?? []])
+        this.dropExpsByPark.get(park)?.map(exp => [exp.id, exp.dropTimes ?? []])
       );
       this.dropExpsByPark
         .get(park)
