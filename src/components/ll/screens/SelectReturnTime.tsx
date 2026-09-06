@@ -22,7 +22,7 @@ import Home from './Home';
 import Legend from './Home/Legend';
 import RefreshButton from './RefreshButton';
 
-export const FULL_AVAILABILITY_KEY = 'bg1.ll.fullAvailability';
+export const FULL_AVAILABILITY_KEY = 'autoll2.ll.fullAvailability';
 
 export default function SelectReturnTime<B extends Offer['booking']>({
   offer,

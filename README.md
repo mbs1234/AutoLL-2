@@ -1,4 +1,4 @@
-# AutoLL
+# AutoLL-2
 
 An unofficial client for Lightning Lane Multi Pass and virtual queue boarding groups at Walt Disney World. Upstream refreshes when you tap refresh; AutoLL-2 watches for you, alerts you, and — if you arm it — books.
 
@@ -22,6 +22,10 @@ On top of those this repository adds Autopilot and NextLL, corrected attraction 
 1. Open <https://mbs1234.github.io/AutoLL-2/> on your phone and install the bookmarklet (or userscript).
 2. Run it on `disneyworld.disney.go.com/vas/` and sign in.
 3. On iOS, add the page to your Home Screen if you want notifications; without that you still get the chime.
+
+AutoLL-2 keeps its session, party, preferences, and Autopilot state under its
+own browser-storage namespace. It does not import BG1 or AutoLL settings, so
+your first AutoLL-2 run starts with a separate sign-in and configuration.
 
 ## How to use
 

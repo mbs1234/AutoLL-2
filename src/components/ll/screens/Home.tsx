@@ -21,7 +21,7 @@ import TimesGuide from './Home/TimesGuide';
 import Plans from './Plans';
 
 const AUTO_REFRESH_MIN_MS = 60_000;
-export const HOME_TAB_KEY = 'bg1.tab';
+export const HOME_TAB_KEY = 'autoll2.tab';
 
 export interface HomeTabProps {
   ref: React.RefObject<HTMLDivElement | null>;

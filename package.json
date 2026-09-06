@@ -1,9 +1,9 @@
 {
   "name": "autoll-2",
   "version": "0.2.0",
-  "description": "An unofficial, experimental boarding group client",
+  "description": "An unofficial, experimental Lightning Lane assistant",
   "license": "GPL-3.0-only",
-  "repository": "github:mbs1234/AutoLL",
+  "repository": "github:mbs1234/AutoLL-2",
   "dependencies": {
     "react": "^19.1.1",
     "react-dom": "^19.1.1"

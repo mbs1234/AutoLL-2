@@ -1977,7 +1977,7 @@ describe('AutopilotProvider with a second provider mounted inside it', () => {
                     <Probe />
                     {inner && (
                       <AutopilotProvider
-                        watchListKey="bg1.nextll.watchlist"
+                        watchListKey="autoll2.nextll.watchlist"
                         budgeted={false}
                         repeatMoves
                       >
