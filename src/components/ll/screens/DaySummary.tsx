@@ -1,14 +1,14 @@
 import { use } from 'react';
 
-import { isLLMP, LLMP } from '@/api/itinerary';
+import { LLMP, isLLMP } from '@/api/itinerary';
 import { targetApplies } from '@/autopilot/watchlist';
 import Screen from '@/components/Screen';
 import { Time } from '@/components/Time';
 import AutopilotContext from '@/contexts/AutopilotContext';
 import BookingDateContext from '@/contexts/BookingDateContext';
 import ClientsContext from '@/contexts/ClientsContext';
-import PlansContext from '@/contexts/PlansContext';
 import ParkContext from '@/contexts/ParkContext';
+import PlansContext from '@/contexts/PlansContext';
 import { formatDate, parkDate } from '@/datetime';
 
 /** A compact operational view of the selected park day. */
@@ -41,18 +41,14 @@ export default function DaySummary() {
 
       <h3>Lightning Lanes ({lanes.length})</h3>
       {lanes.length === 0 ? (
-        <p className="text-sm text-gray-600">
-          No Multi Pass reservations yet.
-        </p>
+        <p className="text-sm text-gray-600">No Multi Pass reservations yet.</p>
       ) : (
         <ul className="text-sm">
           {lanes.map(lane => (
             <li key={lane.id} className="py-1">
               <span className="font-semibold">{lane.name}</span> &mdash;{' '}
-              <Time time={lane.start.time} /> to{' '}
-              <Time time={lane.end.time} />
+              <Time time={lane.start.time} /> to <Time time={lane.end.time} />
               <span className="text-gray-600">
-                {' '}
                 {' '}
                 (grace scan until{' '}
                 <Time time={lane.end.time.add({ minutes: 119 })} />)

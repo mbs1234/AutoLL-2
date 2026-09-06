@@ -60,12 +60,12 @@ import {
   heldEntitlements,
   prewarmGuests,
 } from '@/autopilot/prewarm';
+import { tierLimitLifted } from '@/autopilot/passkey';
 import {
   isTier1,
   orderByPriority,
   shouldHoldTierSlot,
 } from '@/autopilot/priority';
-import { tierLimitLifted } from '@/autopilot/passkey';
 import { NO_REFUSALS, RefusalState, observeAction } from '@/autopilot/refusal';
 import { syncedParkTime } from '@/autopilot/schedule';
 import {
@@ -642,7 +642,8 @@ export default function AutopilotProvider({
     // about the current park day, so riding something this morning must not
     // lift the Tier 1 hold on a booking for next Tuesday.
     const redeemedToday =
-      forToday && (passkeyUnlockedRef.current || experiences.some(exp => exp.experienced));
+      forToday &&
+      (passkeyUnlockedRef.current || experiences.some(exp => exp.experienced));
 
     // Targets that could still consume a Tier 1 slot: armed for booking, and
     // not already held. The tier hold has to reason about attractions that
@@ -665,7 +666,12 @@ export default function AutopilotProvider({
     // constrains what the next can be, so when two attractions drop in the
     // same tick the order is the decision, not an implementation detail.
     const passkeyActive = activeTargets.some(target => target.passkey);
-    for (const hit of orderByPriority(hits, forToday && passkeyActive && !redeemedToday)) {
+    for (
+      const hit of orderByPriority(
+        hits,
+        forToday && passkeyActive && !redeemedToday
+      )
+    ) {
       const { experience } = hit;
       // hit.target may carry a stripped window; the real one governs moving.
       const target = realTarget(experience.id) ?? hit.target;
