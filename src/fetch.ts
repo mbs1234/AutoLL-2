@@ -83,8 +83,8 @@ function checkCache(
   if (init.body !== undefined && typeof init.body !== 'string') {
     return requester();
   }
-  const headers = [...new Headers(init.headers).entries()].sort(
-    ([a], [b]) => a.localeCompare(b)
+  const headers = [...new Headers(init.headers).entries()].sort(([a], [b]) =>
+    a.localeCompare(b)
   );
   const key = JSON.stringify([init.method, url, init.body ?? null, headers]);
   const entry = cache[key];
