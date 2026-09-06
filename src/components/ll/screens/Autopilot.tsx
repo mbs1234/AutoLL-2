@@ -692,9 +692,7 @@ export default function Autopilot() {
               <Button
                 title={`Watch ${exp.name}`}
                 color="bg-gray-200 text-black"
-                onClick={() =>
-                  addTarget({ experienceId: exp.id })
-                }
+                onClick={() => addTarget({ experienceId: exp.id })}
               >
                 <StarIcon />
               </Button>
