@@ -50,6 +50,12 @@ const MODE_TEXT: Record<PollerStatus['mode'], string> = {
   stopped: 'Stopped after repeated errors',
 };
 
+function isDemotedSchedule(coveredDays: number, observedDays: number) {
+  return (
+    coveredDays >= DEMOTION_MIN_COVERED_DAYS && observedDays === 0
+  );
+}
+
 function StatusRow({
   status,
   bookingsRemaining,
@@ -670,16 +676,17 @@ export default function Autopilot() {
                         <Time time={c.time} />{' '}
                         <span
                           className={
-                            c.coveredDays >= DEMOTION_MIN_COVERED_DAYS &&
-                            c.observedDays === 0
+                            isDemotedSchedule(c.coveredDays, c.observedDays)
                               ? 'text-red-700'
                               : 'text-gray-500'
                           }
                         >
                           {c.coveredDays === 0
                             ? '(not watched yet)'
-                            : c.coveredDays >= DEMOTION_MIN_COVERED_DAYS &&
-                              c.observedDays === 0
+                            : isDemotedSchedule(
+                                  c.coveredDays,
+                                  c.observedDays
+                                )
                               ? `(not used after ${c.coveredDays} watched days)`
                             : `(seen ${c.observedDays} of ${c.coveredDays} watched)`}
                         </span>
