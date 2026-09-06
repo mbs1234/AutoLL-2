@@ -24,7 +24,10 @@ import BookingDateContext from '@/contexts/BookingDateContext';
 import ClientsContext from '@/contexts/ClientsContext';
 import ExperiencesContext from '@/contexts/ExperiencesContext';
 import ParkContext from '@/contexts/ParkContext';
+import NavContext from '@/contexts/NavContext';
 import StarIcon from '@/icons/StarIcon';
+
+import DaySummary from './DaySummary';
 
 export const AUTOPILOT = 'Autopilot';
 
@@ -233,12 +236,15 @@ export default function Autopilot() {
     setAvoidOverlaps,
     setTargetWindow,
     setTargetRank,
+    togglePasskey,
+    passkeyStatus,
     skipCounts,
     refusals,
     dropSummaries,
   } = use(AutopilotContext);
   const { experiences, unknownExperienceIds } = use(ExperiencesContext);
   const { park } = use(ParkContext);
+  const { goTo } = use(NavContext);
   const { bookingDate } = use(BookingDateContext);
   const { ll } = use(ClientsContext);
 
@@ -315,6 +321,12 @@ export default function Autopilot() {
             <Time time={ll.nextBookTime} />
           </p>
         )}
+      </div>
+
+      <div className="mt-3">
+        <Button type="small" onClick={() => goTo(<DaySummary />)}>
+          View day summary
+        </Button>
       </div>
 
       {dryRun && (
@@ -474,6 +486,24 @@ export default function Autopilot() {
                   >
                     <StarIcon />
                   </Button>
+                  {exp.tier === undefined && (
+                    <Button
+                      type="small"
+                      title={
+                        target?.passkey
+                          ? `Stop using ${exp.name} as a passkey`
+                          : `Use ${exp.name} as a passkey`
+                      }
+                      color={
+                        target?.passkey
+                          ? 'bg-blue-700 text-white'
+                          : 'bg-gray-200 text-black'
+                      }
+                      onClick={() => togglePasskey(exp.id)}
+                    >
+                      {target?.passkey ? 'Passkey on' : 'Passkey off'}
+                    </Button>
+                  )}
                   <span className="flex-1 font-semibold">{exp.name}</span>
                 </div>
                 {/* Toggles on their own row: five controls plus a long
@@ -619,6 +649,15 @@ export default function Autopilot() {
           only when the offered return time falls inside that attraction&rsquo;s
           window. It will not book an attraction it is already holding or still
           waiting on an answer for.
+        </p>
+      )}
+
+      {targets.some(target => target.passkey) && (
+        <p className="mt-2 text-sm">
+          <span className="font-semibold">Passkey strategy:</span>{' '}
+          {passkeyStatus === 'unlocked'
+            ? 'Disney confirmed every selected guest cleared the Tier 1 hold.'
+            : 'Autopilot prioritizes the marked easy attraction, then waits for Disney to confirm every selected guest has cleared the Tier 1 hold after redemption.'}
         </p>
       )}
 

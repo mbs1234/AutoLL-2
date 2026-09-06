@@ -77,6 +77,21 @@ For each watched attraction, choose the actions you want:
 | **Book then move** | Takes the first available time, even if it is outside the window, then tries to move it into the window. It implies Auto-book and Auto-move. |
 | **Pause** | Continues watching and alerting, but prevents actions for that attraction. |
 | **Swap in** | If all Multi Pass slots are occupied, may replace a lower-priority held reservation for this attraction. |
+| **Passkey** | Marks an easy, non-Tier-1 target to prioritize before the first redemption of the day. It does not enable Auto-book by itself. |
+
+#### Passkey and tap-in strategy
+
+A **passkey** is an easy early Lightning Lane selected to help open up the rest
+of the day. Mark one non-Tier-1 target as Passkey, enable the action you want
+for it, and redeem it with the selected party. AutoLL-2 then checks Disney's
+eligibility response; it only reports the Tier 1 hold unlocked after Disney no
+longer reports that restriction for every selected guest. This matters for
+parties with different redemption progress or attractions requiring more than
+one touch point.
+
+Passkey is optional. It never creates a booking authorization, bypasses an
+eligibility rule, or assumes that a reservation was redeemed merely because it
+appears in Plans.
 
 #### Return-time windows
 
@@ -100,6 +115,10 @@ Autopilot's running state is intentionally not restored after a reload. Its watc
 Autopilot uses one coordinated polling loop rather than separate timers per screen. It checks slowly when nothing is near, speeds up around known release times and your party's booking windows, and uses a moderate refill-window cadence for selected high-demand attractions.
 
 The built-in schedule also learns from local observations. A newly observed recurring drop can be added after it appears on two different park days. Conversely, a scheduled time is demoted only after AutoLL-2 watched it on three park-specific days without observing a drop. The **Learned drop times** panel shows this evidence.
+
+For a selected date of tomorrow, an active watch uses a bounded daytime cadence
+for cancellation and earlier-return releases. A watched ride reopening sends an
+alert; reopening does not by itself authorize a booking.
 
 If repeated checks fail, AutoLL-2 backs off progressively and stops after eight consecutive failures rather than continuing indefinitely. The status area names the error when available.
 
@@ -125,6 +144,10 @@ Leaving the NextLL tab stops its active search because a browser page cannot rel
 5. When the behavior matches your expectations, turn Dry run off and enable only the per-attraction actions you actually want.
 
 The **Why nothing was booked** section groups common guard reasons, such as an unavailable party member, an overlap, an exhausted action budget, or a time outside the configured window.
+
+Use **View day summary** in Autopilot for one screen containing the selected
+day's held Multi Pass reservations, their return and grace-scan windows, the
+next Lightning Lane time, active plan targets and ranks, and passkey status.
 
 ## Troubleshooting
 

@@ -43,9 +43,13 @@ export function comparePriority(a: Ranked, b: Ranked): number {
  * order. The first booking constrains what the next can be, so the order is
  * the decision.
  */
-export function orderByPriority(hits: WatchHit[]): WatchHit[] {
+export function orderByPriority(
+  hits: WatchHit[],
+  passkeyFirst = false
+): WatchHit[] {
   return [...hits].sort(
     (a, b) =>
+      (passkeyFirst ? Number(!a.target.passkey) - Number(!b.target.passkey) : 0) ||
       (a.target.rank ?? Infinity) - (b.target.rank ?? Infinity) ||
       comparePriority(a.experience, b.experience)
   );

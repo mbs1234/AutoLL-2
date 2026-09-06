@@ -23,6 +23,8 @@ export interface WatchTarget {
   date?: string;
   /** User preference within this day plan. Lower ranks are tried first. */
   rank?: number;
+  /** Book this easy early attraction first to unlock the day's Tier 1 strategy. */
+  passkey?: boolean;
   /** Earliest acceptable return time, inclusive. */
   after?: ParkTime;
   /** Latest acceptable return time, inclusive. */
@@ -190,6 +192,7 @@ interface StoredTarget {
   parkId?: string;
   date?: string;
   rank?: number;
+  passkey?: boolean;
   after?: string;
   before?: string;
   /**
@@ -243,6 +246,7 @@ export function loadWatchList(
         ...(typeof t.rank === 'number' && Number.isFinite(t.rank)
           ? { rank: t.rank }
           : {}),
+        ...(t.passkey === true ? { passkey: true } : {}),
         ...(after ? { after } : {}),
         ...(before ? { before } : {}),
         // Only a literal `true` enables booking. Anything else stored here --
@@ -270,6 +274,7 @@ export function saveWatchList(
       ...(t.parkId ? { parkId: t.parkId } : {}),
       ...(t.date ? { date: t.date } : {}),
       ...(typeof t.rank === 'number' ? { rank: t.rank } : {}),
+      ...(t.passkey ? { passkey: true } : {}),
       ...(t.after ? { after: String(t.after) } : {}),
       ...(t.before ? { before: String(t.before) } : {}),
       ...(t.autoBook ? { autoBook: true } : {}),

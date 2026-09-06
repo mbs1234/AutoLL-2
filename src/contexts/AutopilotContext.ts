@@ -81,6 +81,10 @@ export interface AutopilotState {
   ) => void;
   /** Set a user-defined priority for this target within its day plan. */
   setTargetRank: (experienceId: string, rank?: number) => void;
+  /** Mark an easy early target as the day's optional passkey. */
+  togglePasskey: (experienceId: string) => void;
+  /** Whether Disney has confirmed that the selected party cleared the Tier 1 hold. */
+  passkeyStatus: 'off' | 'waiting' | 'unlocked';
   notifications: AlertPermission;
   /** The most recent alert, for showing what was found without a toast. */
   lastHit?: AutopilotHit;
@@ -150,6 +154,8 @@ export default createContext<AutopilotState>({
   toggleAutoSwap: () => undefined,
   setTargetWindow: () => undefined,
   setTargetRank: () => undefined,
+  togglePasskey: () => undefined,
+  passkeyStatus: 'off',
   notifications: 'unsupported',
   bookingLog: [],
   bookedCount: 0,

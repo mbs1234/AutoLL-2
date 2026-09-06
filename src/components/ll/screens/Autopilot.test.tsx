@@ -62,6 +62,7 @@ function setup({
   const setMaxActionsPerDay = jest.fn();
   const setTargetWindow = jest.fn();
   const setTargetRank = jest.fn();
+  const togglePasskey = jest.fn();
   render(
     <ParkContext value={{ park: mk, setPark: () => {} }}>
       <ExperiencesContext
@@ -96,6 +97,8 @@ function setup({
             toggleAutoSwap,
             setTargetWindow,
             setTargetRank,
+            togglePasskey,
+            passkeyStatus: 'off',
             notifications,
             requireWholeParty: false,
             setRequireWholeParty,

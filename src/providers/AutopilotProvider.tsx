@@ -60,7 +60,12 @@ import {
   heldEntitlements,
   prewarmGuests,
 } from '@/autopilot/prewarm';
-import { orderByPriority, shouldHoldTierSlot } from '@/autopilot/priority';
+import {
+  isTier1,
+  orderByPriority,
+  shouldHoldTierSlot,
+} from '@/autopilot/priority';
+import { tierLimitLifted } from '@/autopilot/passkey';
 import { NO_REFUSALS, RefusalState, observeAction } from '@/autopilot/refusal';
 import { syncedParkTime } from '@/autopilot/schedule';
 import {
@@ -188,6 +193,9 @@ export default function AutopilotProvider({
     useState<BookingLogEntry[]>(loadBookingLog);
   const [settings, setSettings] = useState(loadSettings);
   const [skipCounts, setSkipCounts] = useState<Record<string, number>>({});
+  const [passkeyStatus, setPasskeyStatus] = useState<
+    'off' | 'waiting' | 'unlocked'
+  >('off');
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
 
@@ -211,6 +219,7 @@ export default function AutopilotProvider({
   const tickCountRef = useRef(0);
   const targetsRef = useRef(targets);
   targetsRef.current = targets;
+  const passkeyUnlockedRef = useRef(false);
   const bookingDateRef = useRef(bookingDate);
   bookingDateRef.current = bookingDate;
   // Read at tick time: setState from a plans poll has not re-rendered yet
@@ -632,7 +641,8 @@ export default function AutopilotProvider({
     // `forToday` as well as the flag: the tipboard's `experienced` is a fact
     // about the current park day, so riding something this morning must not
     // lift the Tier 1 hold on a booking for next Tuesday.
-    const redeemedToday = forToday && experiences.some(exp => exp.experienced);
+    const redeemedToday =
+      forToday && (passkeyUnlockedRef.current || experiences.some(exp => exp.experienced));
 
     // Targets that could still consume a Tier 1 slot: armed for booking, and
     // not already held. The tier hold has to reason about attractions that
@@ -654,7 +664,8 @@ export default function AutopilotProvider({
     // Ordered by priority rather than tipboard order. The first booking
     // constrains what the next can be, so when two attractions drop in the
     // same tick the order is the decision, not an implementation detail.
-    for (const hit of orderByPriority(hits)) {
+    const passkeyActive = activeTargets.some(target => target.passkey);
+    for (const hit of orderByPriority(hits, forToday && passkeyActive && !redeemedToday)) {
       const { experience } = hit;
       // hit.target may carry a stripped window; the real one governs moving.
       const target = realTarget(experience.id) ?? hit.target;
@@ -952,6 +963,38 @@ export default function AutopilotProvider({
         now: clock,
       });
     }
+
+    // A passkey changes strategy only after Disney's own eligibility response
+    // no longer reports the Tier 1 restriction for every selected guest. The
+    // reservation alone is not evidence of a completed redemption.
+    const heldPasskey = forToday && activeTargets.some(
+      target => target.passkey && !!heldToday(target.experienceId)
+    );
+    const tierOne = experiences.find(
+      exp => isTier1(exp) && activeTargets.some(target => target.experienceId === exp.id)
+    );
+    if (!passkeyActive) {
+      passkeyUnlockedRef.current = false;
+      setPasskeyStatus('off');
+    } else if (passkeyUnlockedRef.current) {
+      setPasskeyStatus('unlocked');
+    } else if (heldPasskey && tierOne) {
+      const guests = await guestsFor(tierOne.id, date);
+      if (tierLimitLifted(guests)) {
+        passkeyUnlockedRef.current = true;
+        cacheRef.current.clear();
+        setPasskeyStatus('unlocked');
+        fireAlert({
+          title: 'Tier 1 hold unlocked',
+          body: 'Disney confirmed your selected party can book Tier 1 targets.',
+          tag: `autoll2-passkey-${date}`,
+        });
+      } else {
+        setPasskeyStatus('waiting');
+      }
+    } else {
+      setPasskeyStatus('waiting');
+    }
   }, [
     pollExperiences,
     pollPlans,
@@ -1060,6 +1103,8 @@ export default function AutopilotProvider({
         // Fresh baseline: the first poll of a run sees everything as "new", and
         // that must read as a baseline rather than a drop.
         snapshotRef.current = new Map();
+        passkeyUnlockedRef.current = false;
+        setPasskeyStatus('off');
       }
       setEnabledState(on);
     },
@@ -1228,6 +1273,20 @@ export default function AutopilotProvider({
     [park.id, bookingDate]
   );
 
+  const togglePasskey = useCallback(
+    (experienceId: string) => {
+      setTargets(prev =>
+        prev.map(target =>
+          target.experienceId === experienceId &&
+          targetApplies(target, park.id, bookingDate)
+            ? { ...target, passkey: !target.passkey }
+            : target
+        )
+      );
+    },
+    [park.id, bookingDate]
+  );
+
   return (
     <AutopilotContext
       value={{
@@ -1247,6 +1306,8 @@ export default function AutopilotProvider({
         toggleAutoSwap: id => toggleFlag(id, 'autoSwap'),
         setTargetWindow,
         setTargetRank,
+        togglePasskey,
+        passkeyStatus,
         notifications,
         lastHit,
         bookingLog,
