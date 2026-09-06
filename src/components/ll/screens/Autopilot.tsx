@@ -51,9 +51,7 @@ const MODE_TEXT: Record<PollerStatus['mode'], string> = {
 };
 
 function isDemotedSchedule(coveredDays: number, observedDays: number) {
-  return (
-    coveredDays >= DEMOTION_MIN_COVERED_DAYS && observedDays === 0
-  );
+  return coveredDays >= DEMOTION_MIN_COVERED_DAYS && observedDays === 0;
 }
 
 function StatusRow({
@@ -683,10 +681,7 @@ export default function Autopilot() {
                         >
                           {c.coveredDays === 0
                             ? '(not watched yet)'
-                            : isDemotedSchedule(
-                                  c.coveredDays,
-                                  c.observedDays
-                                )
+                            : isDemotedSchedule(c.coveredDays, c.observedDays)
                               ? `(not used after ${c.coveredDays} watched days)`
                             : `(seen ${c.observedDays} of ${c.coveredDays} watched)`}
                         </span>
