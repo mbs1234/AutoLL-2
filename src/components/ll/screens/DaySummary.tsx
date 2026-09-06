@@ -21,6 +21,11 @@ export default function DaySummary() {
   const targetsToday = targets.filter(target =>
     targetApplies(target, park.id, bookingDate)
   );
+  // Every Multi Pass held on the date, wherever it is. Deliberately not
+  // filtered to the loaded park: the party holds at most three at a time and
+  // on a hopping day they span parks, so hiding one would hide a slot that is
+  // spent. The park below applies to the plan, which *is* park-scoped -- so
+  // the headings say which is which rather than the screen implying both.
   const lanes = plans.filter(
     (booking): booking is LLMP =>
       isLLMP(booking) && parkDate(booking.start) === bookingDate
@@ -28,9 +33,7 @@ export default function DaySummary() {
 
   return (
     <Screen title="Day summary" theme={park.theme}>
-      <p>
-        {formatDate(bookingDate)} &mdash; {park.name}
-      </p>
+      <p>{formatDate(bookingDate)}</p>
 
       {ll.nextBookTime && (
         <p className="mt-3 rounded-sm bg-gray-100 p-2 text-sm">
@@ -40,6 +43,9 @@ export default function DaySummary() {
       )}
 
       <h3>Lightning Lanes ({lanes.length})</h3>
+      <p className="text-xs text-gray-600">
+        Everything held on this date, in any park.
+      </p>
       {lanes.length === 0 ? (
         <p className="text-sm text-gray-600">No Multi Pass reservations yet.</p>
       ) : (
@@ -73,6 +79,9 @@ export default function DaySummary() {
       )}
 
       <h3>Active plan ({targetsToday.length})</h3>
+      <p className="text-xs text-gray-600">
+        What Autopilot is watching at {park.name} on this date.
+      </p>
       {targetsToday.length === 0 ? (
         <p className="text-sm text-gray-600">
           No Autopilot targets for this park day.

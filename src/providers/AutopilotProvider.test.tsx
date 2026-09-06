@@ -2144,6 +2144,25 @@ describe('AutopilotProvider passkey', () => {
   // The unlock was a bare boolean cleared only by turning autopilot off and
   // on, so a tab left open across the 4am rollover or a change of booking date
   // carried yesterday's unlock into a day it says nothing about.
+  // The tracker exists for exactly this: a redeemed pass leaves the itinerary,
+  // and LLTracker.update settles it by asking Disney whether the party now
+  // reports EXPERIENCE_LIMIT_REACHED. Requiring the reservation to still be in
+  // plans left a genuinely redeemed passkey stuck on "waiting" all day -- and
+  // redeeming early enough to disappear is the ordinary case for a strategy
+  // whose whole point is redeeming early.
+  it('unlocks for a redeemed passkey that has left the itinerary', async () => {
+    armed();
+    setupBooking({
+      experiences: withTierOne(),
+      plans: [],
+      experiencedIds: [PASSKEY],
+    });
+    await enable();
+    await waitFor(() =>
+      expect(screen.getByTestId('passkey')).toHaveTextContent('unlocked')
+    );
+  });
+
   it('does not carry an unlock onto another day', async () => {
     armed();
     const { setBookingDate } = setupBooking({

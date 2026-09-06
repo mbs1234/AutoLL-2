@@ -35,7 +35,16 @@ export interface PollerOptions {
    * the silent `pollExperiences`/`pollPlans` context functions do; the
    * visible `refreshExperiences`/`refreshPlans` do not.
    */
-  onTick: () => Promise<void>;
+  /**
+   * One poll.
+   *
+   * Receives a cancellation check because stopping the loop is not the same
+   * as stopping the tick: turning autopilot off, changing the park or the
+   * date, or unmounting only prevents the *next* tick from being scheduled.
+   * A tick already past its awaits carries on, and the last thing it does is
+   * spend an entitlement. Anything that books, moves or swaps must ask.
+   */
+  onTick: (cancelled: () => boolean) => Promise<void>;
   dropTimes?: ParkTime[];
   refillWindows?: RefillWindow[];
   nextBookTimes?: ParkTime[];
@@ -104,7 +113,7 @@ export default function usePoller({
       let failed = false;
       let lastError: string | undefined;
       try {
-        await onTickRef.current();
+        await onTickRef.current(() => cancelled);
         failures = 0;
       } catch (error) {
         failed = true;
