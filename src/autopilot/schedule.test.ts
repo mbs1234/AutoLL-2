@@ -9,6 +9,7 @@ import {
   MIN_INTERVAL_MS,
   RAPID_INTERVAL_MS,
   RAPID_MIN_INTERVAL_MS,
+  BURST_LEAD_S,
   backoffMs,
   cadence,
   secondsUntil,
@@ -51,10 +52,10 @@ describe('cadence()', () => {
   });
 
   it('approaches within five minutes of a drop', () => {
-    const c = cadence({ now: at(9, 45), dropTimes: [DROP] });
+    const c = cadence({ now: at(9, 43), dropTimes: [DROP] });
     expect(c.mode).toBe('approach');
     expect(c.intervalMs).toBe(APPROACH_INTERVAL_MS);
-    expect(c.secondsToTarget).toBe(120);
+    expect(c.secondsToTarget).toBe(240);
   });
 
   it('bursts just before a drop', () => {
@@ -62,6 +63,13 @@ describe('cadence()', () => {
     expect(c.mode).toBe('burst');
     expect(c.intervalMs).toBe(BURST_INTERVAL_MS);
     expect(c.secondsToTarget).toBe(20);
+  });
+
+  it('starts the burst two minutes before a scheduled drop', () => {
+    const c = cadence({ now: at(9, 45), dropTimes: [DROP] });
+    expect(BURST_LEAD_S).toBe(120);
+    expect(c.mode).toBe('burst');
+    expect(c.secondsToTarget).toBe(120);
   });
 
   it('bursts exactly at the drop', () => {
@@ -129,6 +137,36 @@ describe('cadence()', () => {
       dropTimes: [at(9, 47), at(11, 47), at(13, 47)],
     });
     expect(c.mode).toBe('idle');
+  });
+
+  it('uses the moderate cadence inside a refill window', () => {
+    const window = { start: at(9), end: at(10, 30) };
+    const c = cadence({ now: at(9, 45), refillWindows: [window] });
+    expect(c.mode).toBe('approach');
+    expect(c.intervalMs).toBe(APPROACH_INTERVAL_MS);
+    expect(c.refillWindow).toEqual(window);
+    expect(c.target).toBeUndefined();
+  });
+
+  it('does not poll a refill window before or after its span', () => {
+    const window = { start: at(9), end: at(10, 30) };
+    expect(cadence({ now: at(8, 59, 59), refillWindows: [window] }).mode).toBe(
+      'idle'
+    );
+    expect(cadence({ now: at(10, 30, 1), refillWindows: [window] }).mode).toBe(
+      'idle'
+    );
+  });
+
+  it('lets a scheduled drop burst win over an active refill window', () => {
+    const c = cadence({
+      now: at(9, 47),
+      dropTimes: [DROP],
+      refillWindows: [{ start: at(9), end: at(10, 30) }],
+    });
+    expect(c.mode).toBe('burst');
+    expect(c.target).toEqual(DROP);
+    expect(c.refillWindow).toBeUndefined();
   });
 });
 

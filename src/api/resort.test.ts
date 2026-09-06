@@ -29,6 +29,13 @@ describe('Resort', () => {
     );
   });
 
+  it('revives configured refill-window times as ParkTime values', () => {
+    const testTrack = wdw.experience('80010199');
+    expect(testTrack.refillWindows).toEqual([
+      { start: new ParkTime(9), end: new ParkTime(10, 30) },
+    ]);
+  });
+
   describe('experience()', () => {
     it('returns experience for given ID', () => {
       expect(wdw.experience(tron.id)).toBe(experiences[tron.id]);

@@ -1,4 +1,5 @@
 import { ParkTime } from '@/datetime';
+import type { RefillWindow } from '@/autopilot/schedule';
 
 export class Theme {
   readonly color;
@@ -43,6 +44,7 @@ export interface Experience {
   tier?: number;
   priority?: number;
   dropTimes?: ParkTime[];
+  refillWindows?: RefillWindow[];
   highlight?: boolean;
 }
 
@@ -50,10 +52,11 @@ type ParkData = Omit<Park, 'dropTimes' | 'theme'>;
 type LandData = Omit<Land, 'park' | 'theme'> & { park: ParkData };
 export type ExperienceData = Omit<
   Experience,
-  'id' | 'land' | 'park' | 'dropTimes'
+  'id' | 'land' | 'park' | 'dropTimes' | 'refillWindows'
 > & {
   land: LandData;
   dropTimes?: string[];
+  refillWindows?: { start: string; end: string }[];
 };
 
 export interface ResortData {
@@ -93,6 +96,12 @@ export class Resort {
       if (expData.dropTimes) {
         exp.dropTimes = expData.dropTimes.map(ParkTime.from);
         this.dropExpsByPark.get(exp.land.park)?.push(exp);
+      }
+      if (expData.refillWindows) {
+        exp.refillWindows = expData.refillWindows.map(window => ({
+          start: ParkTime.from(window.start),
+          end: ParkTime.from(window.end),
+        }));
       }
     }
     for (const park of this.parks) {

@@ -937,6 +937,16 @@ export default function AutopilotProvider({
     [park, dropSummaries, parkExperienceIds]
   );
 
+  // Refill periods are deliberately target-scoped. A broad window is useful
+  // when it can help one of the attractions the user chose, but would waste
+  // battery and requests if merely being in the same park enabled it.
+  const refillWindows = useMemo(() => {
+    const watched = new Set(targets.map(target => target.experienceId));
+    return experiences.flatMap(exp =>
+      watched.has(exp.id) ? (exp.refillWindows ?? []) : []
+    );
+  }, [experiences, targets]);
+
   // Drops and the next-booking window are day-of phenomena. When the user is
   // watching a future date -- improving pre-booked selections before the trip
   // -- bursting at 09:47 for a day next week is pure waste, so the cadence
@@ -947,6 +957,7 @@ export default function AutopilotProvider({
     enabled,
     onTick,
     dropTimes: watchingToday ? effectiveDropTimes : undefined,
+    refillWindows: watchingToday ? refillWindows : undefined,
     // Set as a side effect of ll.experiences(), so it is current as of the
     // last poll. Read fresh each tick by usePoller.
     nextBookTimes: watchingToday ? ll.nextBookTimes : undefined,

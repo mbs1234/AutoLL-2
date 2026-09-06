@@ -85,6 +85,13 @@ function StatusRow({
             )}
         </div>
       )}
+      {status.refillWindow && !status.target && (
+        <div>
+          <span className="font-semibold">Refill window:</span>{' '}
+          <Time time={status.refillWindow.start} />&ndash;
+          <Time time={status.refillWindow.end} />
+        </div>
+      )}
       {refused.length > 0 && (
         <div className="mt-2 rounded-sm bg-red-100 p-2 text-red-900">
           <p className="font-semibold">Disney is refusing these requests.</p>

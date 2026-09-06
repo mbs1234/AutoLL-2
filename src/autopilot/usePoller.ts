@@ -12,6 +12,7 @@ import {
   syncedParkTime,
   withJitter,
 } from './schedule';
+import type { RefillWindow } from './schedule';
 
 export interface PollerStatus {
   /** `off` when disabled, `stopped` after giving up on repeated failures. */
@@ -21,6 +22,8 @@ export interface PollerStatus {
   /** The drop or booking time currently driving the cadence. */
   target?: ParkTime;
   secondsToTarget?: number;
+  /** A refill period currently driving the moderate cadence. */
+  refillWindow?: RefillWindow;
   /** Ticks attempted since the loop started; useful for display and tests. */
   polls: number;
 }
@@ -34,6 +37,7 @@ export interface PollerOptions {
    */
   onTick: () => Promise<void>;
   dropTimes?: ParkTime[];
+  refillWindows?: RefillWindow[];
   nextBookTimes?: ParkTime[];
   /** Poll flat-out, ignoring the drop schedule. */
   rapid?: boolean;
@@ -58,6 +62,7 @@ export default function usePoller({
   enabled,
   onTick,
   dropTimes,
+  refillWindows,
   nextBookTimes,
   rapid,
 }: PollerOptions): PollerStatus {
@@ -70,10 +75,12 @@ export default function usePoller({
   // so the loop would rarely survive.
   const onTickRef = useRef(onTick);
   const dropTimesRef = useRef(dropTimes);
+  const refillWindowsRef = useRef(refillWindows);
   const nextBookTimesRef = useRef(nextBookTimes);
   const rapidRef = useRef(rapid);
   onTickRef.current = onTick;
   dropTimesRef.current = dropTimes;
+  refillWindowsRef.current = refillWindows;
   nextBookTimesRef.current = nextBookTimes;
   rapidRef.current = rapid;
 
@@ -118,6 +125,7 @@ export default function usePoller({
       const next = cadence({
         now: syncedParkTime(),
         dropTimes: dropTimesRef.current,
+        refillWindows: refillWindowsRef.current,
         nextBookTimes: nextBookTimesRef.current,
         rapid: rapidRef.current,
       });
@@ -135,6 +143,7 @@ export default function usePoller({
         lastError,
         target: next.target,
         secondsToTarget: next.secondsToTarget,
+        refillWindow: next.refillWindow,
         polls,
       });
 

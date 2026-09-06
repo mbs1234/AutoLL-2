@@ -11,10 +11,10 @@ import { now as syncedNow } from '@/timesync';
 export type PollMode = 'idle' | 'approach' | 'burst';
 
 /**
- * Start bursting slightly *before* the target. Disney sometimes releases
- * inventory a few seconds early, and arriving warm beats arriving on time.
+ * Start bursting two minutes before the target. Disney sometimes releases
+ * inventory early, and arriving warm beats arriving on time.
  */
-export const BURST_LEAD_S = 30;
+export const BURST_LEAD_S = 120;
 /**
  * Keep bursting after the target: dropped inventory trickles in rather than
  * appearing all at once, and the good return times get taken within a minute.
@@ -68,6 +68,12 @@ export interface CadenceInput {
   /** Drop times for the park, e.g. `park.dropTimes`. */
   dropTimes?: ParkTime[];
   /**
+   * Periods in which an attraction tends to be refilled rather than released
+   * at one predictable instant. Unlike a drop time, a refill window stays at
+   * the moderate approach cadence for its whole duration.
+   */
+  refillWindows?: RefillWindow[];
+  /**
    * Poll as fast as the limiter allows, ignoring the schedule.
    *
    * The drop-aware cadence exists to spend requests where they pay: idle until
@@ -88,6 +94,11 @@ export interface CadenceInput {
   nextBookTimes?: ParkTime[];
 }
 
+export interface RefillWindow {
+  start: ParkTime;
+  end: ParkTime;
+}
+
 export interface Cadence {
   mode: PollMode;
   intervalMs: number;
@@ -98,6 +109,8 @@ export interface Cadence {
    * still inside its trailing window.
    */
   secondsToTarget?: number;
+  /** The refill period currently keeping the poller warm, if any. */
+  refillWindow?: RefillWindow;
 }
 
 /** Drift-corrected current park time. */
@@ -128,13 +141,13 @@ export function secondsUntil(now: ParkTime, target: ParkTime): number {
 export function cadence({
   now,
   dropTimes = [],
+  refillWindows = [],
   nextBookTimes = [],
   rapid = false,
 }: CadenceInput): Cadence {
   if (rapid) return { mode: 'burst', intervalMs: RAPID_INTERVAL_MS };
-  // Defaulting to an empty array rather than testing for undefined keeps the
-  // two kinds of target symmetrical, which is what lets the loop below score
-  // every one of them without knowing where it came from.
+  // Defaulting to empty arrays rather than testing for undefined keeps the
+  // instantaneous target sources symmetrical below.
   const targets = [...dropTimes, ...nextBookTimes];
 
   let burst: { target: ParkTime; secondsToTarget: number } | undefined;
@@ -161,6 +174,15 @@ export function cadence({
   if (burst) return { mode: 'burst', intervalMs: BURST_INTERVAL_MS, ...burst };
   if (approach) {
     return { mode: 'approach', intervalMs: APPROACH_INTERVAL_MS, ...approach };
+  }
+  // A refill is a span, not a series of invented drop instants. Poll at the
+  // existing 6-second approach rate while inside it; a real scheduled drop
+  // still wins above and can use the shorter burst interval.
+  const refillWindow = refillWindows.find(
+    window => +now >= +window.start && +now <= +window.end
+  );
+  if (refillWindow) {
+    return { mode: 'approach', intervalMs: APPROACH_INTERVAL_MS, refillWindow };
   }
   return { mode: 'idle', intervalMs: IDLE_INTERVAL_MS };
 }

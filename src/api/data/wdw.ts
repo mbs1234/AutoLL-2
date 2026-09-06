@@ -300,6 +300,7 @@ export const experiences: ResortData['experiences'] = {
     priority: 1.1,
     avgWait: 53,
     highlight: true,
+    refillWindows: [{ start: '11:00', end: '14:30' }],
   },
   80010153: {
     name: 'Jungle Cruise',
@@ -310,6 +311,7 @@ export const experiences: ResortData['experiences'] = {
     priority: 2.2,
     avgWait: 37,
     highlight: true,
+    refillWindows: [{ start: '11:00', end: '14:30' }],
   },
   80010162: {
     name: 'Mad Tea Party',
@@ -364,6 +366,7 @@ export const experiences: ResortData['experiences'] = {
     priority: 2.1,
     avgWait: 43,
     highlight: true,
+    refillWindows: [{ start: '11:00', end: '14:30' }],
   },
   80010177: {
     name: 'Pirates of the Caribbean',
@@ -778,6 +781,7 @@ export const experiences: ResortData['experiences'] = {
     avgWait: 74,
     highlight: true,
     dropTimes: ['8:47', '12:47', '14:47', '17:47'],
+    refillWindows: [{ start: '09:00', end: '10:30' }],
   },
   62992: {
     name: 'Turtle Talk With Crush',
@@ -1027,6 +1031,7 @@ export const experiences: ResortData['experiences'] = {
     priority: 3,
     avgWait: 41,
     highlight: true,
+    refillWindows: [{ start: '11:00', end: '14:30' }],
   },
   19263735: {
     name: 'Millennium Falcon: Smugglers Run',
@@ -1065,6 +1070,7 @@ export const experiences: ResortData['experiences'] = {
     avgWait: 72,
     highlight: true,
     dropTimes: ['13:17', '15:47'],
+    refillWindows: [{ start: '09:00', end: '10:30' }],
   },
   80010193: {
     name: 'Star Tours',
@@ -1082,6 +1088,7 @@ export const experiences: ResortData['experiences'] = {
     avgWait: 44,
     highlight: true,
     dropTimes: ['13:17', '15:47'],
+    refillWindows: [{ start: '09:00', end: '10:30' }],
   },
   80010218: {
     name: 'Twilight Zone Tower of Terror',
@@ -1092,6 +1099,7 @@ export const experiences: ResortData['experiences'] = {
     avgWait: 42,
     highlight: true,
     dropTimes: ['13:17', '15:47'],
+    refillWindows: [{ start: '09:00', end: '10:30' }],
   },
 
   // Hollywood Studios - Entertainment
@@ -1297,6 +1305,7 @@ export const experiences: ResortData['experiences'] = {
     priority: 1,
     avgWait: 41,
     highlight: true,
+    refillWindows: [{ start: '09:00', end: '10:30' }],
   },
   80010235: {
     name: 'Wildlife Express Train',
