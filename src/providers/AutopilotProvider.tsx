@@ -82,6 +82,7 @@ import { holdScreenAwake, releaseScreenAwake } from '@/autopilot/wakelock';
 import {
   WATCHLIST_KEY,
   WatchTarget,
+  inWindow,
   loadWatchList,
   matchWatchList,
   parseBound,
@@ -709,6 +710,36 @@ export default function AutopilotProvider({
         const { experience } = hit;
         // hit.target may carry a stripped window; the real one governs moving.
         const target = realTarget(experience.id) ?? hit.target;
+        /**
+         * Whether the current watch list still authorises this exact action.
+         *
+         * Re-runs the admission test the loop ran, against the live list,
+         * rather than trusting the copy captured before the awaits. Every
+         * input can change while a request is in flight: the toggles, the
+         * window, pausing, unstarring.
+         */
+        const stillWantsAction = (
+          experienceId: string,
+          actionKind: 'book' | 'modify' | 'swap',
+          returnTime: ParkTime
+        ) => {
+          // `targetsRef`, not `activeTargets`: the latter is this tick's
+          // opening snapshot, which is precisely the thing that has gone
+          // stale by the time this is asked.
+          const now = targetsRef.current.find(
+            t =>
+              t.experienceId === experienceId && targetApplies(t, park.id, date)
+          );
+          if (!now || now.paused) return false;
+          if (actionKind === 'modify') {
+            return !!(now.autoModify || now.bookThenMove);
+          }
+          if (actionKind === 'swap') return !!now.autoSwap;
+          if (!(now.autoBook || now.bookThenMove || now.autoSwap)) return false;
+          // Book-then-move takes any time while nothing is held, which is what
+          // strips the window in the first place; every other book respects it.
+          return now.bookThenMove ? true : inWindow(returnTime, now);
+        };
         if (target.paused) continue;
         const wantsBook = !!(
           target.autoBook ||
@@ -795,18 +826,11 @@ export default function AutopilotProvider({
           // or changing the day, while that request is outstanding used to
           // land in the offer and booking calls regardless.
           if (stale()) break;
-          // Same for the target itself: pausing or unstarring an attraction
-          // mid-request should not be followed by booking it.
-          if (
-            !targetsRef.current.some(
-              t =>
-                t.experienceId === experience.id &&
-                targetApplies(t, park.id, date) &&
-                !t.paused
-            )
-          ) {
-            continue;
-          }
+          // And the plan itself, re-read rather than remembered. Checking only
+          // that the target still exists and is unpaused was too weak: turning
+          // Auto-book off, or narrowing the return-time window, leaves it
+          // present and unpaused while the action it authorised is gone.
+          if (!stillWantsAction(experience.id, kind, hit.returnTime)) continue;
           // A Lightning Lane for part of the group is often worse than none: it
           // splits the party and spends the slot. Opt-in, since booking by hand
           // in bg1 or Disney's app books for whoever is eligible.
@@ -879,6 +903,12 @@ export default function AutopilotProvider({
               guests,
               ledger: ledgerRef.current,
               clashes,
+              // Last gate before the entitlement is spent: generating the
+              // offer is another round trip, and every guard above it ran
+              // before that.
+              stillWanted: () =>
+                !stale() &&
+                stillWantsAction(experience.id, 'swap', hit.returnTime),
             });
           } else if (existing) {
             outcome = await attemptAutoModify(
@@ -893,6 +923,12 @@ export default function AutopilotProvider({
                 guests,
                 ledger: ledgerRef.current,
                 clashes,
+                // Last gate before the entitlement is spent: generating the
+                // offer is another round trip, and every guard above it ran
+                // before that.
+                stillWanted: () =>
+                  !stale() &&
+                  stillWantsAction(experience.id, 'modify', hit.returnTime),
               }
             );
           } else {
@@ -903,6 +939,12 @@ export default function AutopilotProvider({
               guests,
               ledger: ledgerRef.current,
               clashes,
+              // Last gate before the entitlement is spent: generating the
+              // offer is another round trip, and every guard above it ran
+              // before that.
+              stillWanted: () =>
+                !stale() &&
+                stillWantsAction(experience.id, 'book', hit.returnTime),
             });
           }
         } catch (error) {
