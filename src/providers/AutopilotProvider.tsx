@@ -1101,51 +1101,62 @@ export default function AutopilotProvider({
     [targets, park.id, bookingDate]
   );
 
-  const addTarget = useCallback((target: WatchTarget) => {
-    const scoped = {
-      ...target,
-      parkId: target.parkId ?? park.id,
-      date: target.date ?? bookingDate,
-    };
-    setTargets(prev => [
-      ...prev.filter(
-        t =>
-          t.experienceId !== scoped.experienceId ||
-          !targetApplies(t, park.id, bookingDate)
-      ),
-      scoped,
-    ]);
-  }, [park.id, bookingDate]);
+  const addTarget = useCallback(
+    (target: WatchTarget) => {
+      const scoped = {
+        ...target,
+        parkId: target.parkId ?? park.id,
+        date: target.date ?? bookingDate,
+      };
+      setTargets(prev => [
+        ...prev.filter(
+          t =>
+            t.experienceId !== scoped.experienceId ||
+            !targetApplies(t, park.id, bookingDate)
+        ),
+        scoped,
+      ]);
+    },
+    [park.id, bookingDate]
+  );
 
-  const removeTarget = useCallback((experienceId: string) => {
-    setTargets(prev =>
-      prev.filter(
-        t =>
-          t.experienceId !== experienceId ||
-          !targetApplies(t, park.id, bookingDate)
-      )
-    );
-  }, [park.id, bookingDate]);
+  const removeTarget = useCallback(
+    (experienceId: string) => {
+      setTargets(prev =>
+        prev.filter(
+          t =>
+            t.experienceId !== experienceId ||
+            !targetApplies(t, park.id, bookingDate)
+        )
+      );
+    },
+    [park.id, bookingDate]
+  );
 
   const replaceTargets = useCallback((next: WatchTarget[]) => {
     setTargets(next);
   }, []);
 
-  const toggleAutoBook = useCallback((experienceId: string) => {
-    setTargets(prev =>
-      prev.map(t =>
-        t.experienceId === experienceId && targetApplies(t, park.id, bookingDate)
-          ? { ...t, autoBook: !t.autoBook }
-          : t
-      )
-    );
-  }, [park.id, bookingDate]);
+  const toggleAutoBook = useCallback(
+    (experienceId: string) => {
+      setTargets(prev =>
+        prev.map(t =>
+          t.experienceId === experienceId &&
+          targetApplies(t, park.id, bookingDate)
+            ? { ...t, autoBook: !t.autoBook }
+            : t
+        )
+      );
+    },
+    [park.id, bookingDate]
+  );
 
   const toggleFlag = useCallback(
     (experienceId: string, flag: 'bookThenMove' | 'paused' | 'autoSwap') => {
       setTargets(prev =>
         prev.map(t =>
-          t.experienceId === experienceId && targetApplies(t, park.id, bookingDate)
+          t.experienceId === experienceId &&
+          targetApplies(t, park.id, bookingDate)
             ? { ...t, [flag]: !t[flag] }
             : t
         )
@@ -1193,7 +1204,9 @@ export default function AutopilotProvider({
             return target;
           }
           const next = { ...target };
-          if (typeof rank === 'number' && Number.isFinite(rank)) next.rank = rank;
+          if (typeof rank === 'number' && Number.isFinite(rank)) {
+            next.rank = rank;
+          }
           else delete next.rank;
           return next;
         })
@@ -1202,15 +1215,19 @@ export default function AutopilotProvider({
     [park.id, bookingDate]
   );
 
-  const toggleAutoModify = useCallback((experienceId: string) => {
-    setTargets(prev =>
-      prev.map(t =>
-        t.experienceId === experienceId && targetApplies(t, park.id, bookingDate)
-          ? { ...t, autoModify: !t.autoModify }
-          : t
-      )
-    );
-  }, [park.id, bookingDate]);
+  const toggleAutoModify = useCallback(
+    (experienceId: string) => {
+      setTargets(prev =>
+        prev.map(t =>
+          t.experienceId === experienceId &&
+          targetApplies(t, park.id, bookingDate)
+            ? { ...t, autoModify: !t.autoModify }
+            : t
+        )
+      );
+    },
+    [park.id, bookingDate]
+  );
 
   return (
     <AutopilotContext

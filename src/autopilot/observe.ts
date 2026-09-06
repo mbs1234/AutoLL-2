@@ -73,7 +73,7 @@ export function snapshotOf(experiences: Experience[]): Snapshot {
     snap.set(exp.id, {
       available: !!exp.flex.available,
       next: exp.flex.nextAvailableTime,
-      ...(exp.standby.unavailableReason === 'TEMPORARILY_DOWN'
+      ...(exp.standby?.unavailableReason === 'TEMPORARILY_DOWN'
         ? { temporarilyDown: true }
         : {}),
     });

@@ -2,7 +2,6 @@ import { use, useEffect, useState } from 'react';
 
 import { Experience } from '@/api/ll';
 import { MAX_ACTIONS_PER_DAY, MIN_ACTIONS_PER_DAY } from '@/autopilot/autobook';
-import { targetApplies } from '@/autopilot/watchlist';
 import {
   DEMOTION_MIN_COVERED_DAYS,
   LEARNED_MIN_DAYS,
@@ -14,6 +13,7 @@ import {
   refusedCalls,
 } from '@/autopilot/refusal';
 import { MAX_CONSECUTIVE_FAILURES, syncedParkTime } from '@/autopilot/schedule';
+import { targetApplies } from '@/autopilot/watchlist';
 import { PollerStatus } from '@/autopilot/usePoller';
 import Button from '@/components/Button';
 import Disclosure from '@/components/Disclosure';
@@ -336,7 +336,10 @@ export default function Autopilot() {
           </p>
           <ul>
             {absentTargets.map(target => (
-              <li key={target.experienceId} className="flex items-center gap-2 py-1">
+              <li
+                key={target.experienceId}
+                className="flex items-center gap-2 py-1"
+              >
                 <Button
                   title={`Remove unavailable target ${target.experienceId}`}
                   onClick={() => removeTarget(target.experienceId)}
@@ -593,11 +596,15 @@ export default function Autopilot() {
                     onChange={e =>
                       setTargetRank(
                         exp.id,
-                        e.target.value === '' ? undefined : Number(e.target.value)
+                        e.target.value === ''
+                          ? undefined
+                          : Number(e.target.value)
                       )
                     }
                   />
-                  <span>lower goes first; blank uses the built-in priority</span>
+                  <span>
+                    lower goes first; blank uses the built-in priority
+                  </span>
                 </label>
               </li>
             );
@@ -685,7 +692,9 @@ export default function Autopilot() {
               <Button
                 title={`Watch ${exp.name}`}
                 color="bg-gray-200 text-black"
-                onClick={() => addTarget({ experienceId: exp.id, name: exp.name })}
+                onClick={() =>
+                  addTarget({ experienceId: exp.id, name: exp.name })
+                }
               >
                 <StarIcon />
               </Button>

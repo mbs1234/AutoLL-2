@@ -67,6 +67,7 @@ export default function usePoller({
   refillWindows,
   nextBookTimes,
   rapid,
+  tomorrow,
 }: PollerOptions): PollerStatus {
   const [status, setStatus] = useState<PollerStatus>(OFF);
 

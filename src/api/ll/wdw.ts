@@ -148,74 +148,70 @@ export class LLClientWDW extends LLClient {
     // this extra request more than once for the same plan.
     if (!this.#availabilityBundles[date + park.id]) {
       const dateParkId = date + park.id;
-        // Best effort, and deliberately unable to fail the call it enriches.
-        //
-        // The tipboard has already come back by this point; everything below
-        // only adds the attractions it omits because they are closed. Letting
-        // this throw threw away a good result and, because the poller reads a
-        // thrown tick as a failed one, drove it into exponential backoff --
-        // then stopped it after MAX_CONSECUTIVE_FAILURES. On a future date
-        // the condition above is true on every poll and nothing is cached
-        // until the request succeeds, so a single unavailable endpoint turned
-        // a working Autopilot into one checking every sixty seconds and then
-        // not at all. This is an extra: it may not be worth a request, and it
-        // is certainly not worth the poll.
-        try {
-          const { data } = await this.request<{
-            tiers: {
-              /** Disney has returned both numeric and unlabeled tiers. */
+      // Best effort, and deliberately unable to fail the call it enriches.
+      //
+      // The tipboard has already come back by this point; everything below
+      // only adds the attractions it omits because they are closed. Letting
+      // this throw threw away a good result and, because the poller reads a
+      // thrown tick as a failed one, drove it into exponential backoff --
+      // then stopped it after MAX_CONSECUTIVE_FAILURES. This is an extra: it
+      // may not be worth a request, and it is certainly not worth the poll.
+      try {
+        const { data } = await this.request<{
+          tiers: {
+            /** Disney has returned both numeric and unlabeled tiers. */
+            tier?: number;
+            experiences: {
+              facilityId: string;
+              isAvailable?: boolean;
               tier?: number;
-              experiences: {
-                facilityId: string;
-                isAvailable?: boolean;
-                tier?: number;
-              }[];
             }[];
-          }>({
-            path: '/ea-vas/planning/api/v1/experiences/availability/bundles/experiences',
-            data: {
-              parkId: park.id,
-              date,
-              guestIds: [await this.primaryGuestId()],
-              existingOfferIds: [],
-              orderId: null,
-            },
-          });
-          const tiers = new Map<Experience['id'], number | undefined>();
-          const closedIds: Experience['id'][] = [];
-          for (const group of data.tiers) {
-            for (const exp of group.experiences) {
-              if (!expIds.has(exp.facilityId)) closedIds.push(exp.facilityId);
-              // Never infer a tier from array position. An unlabeled response
-              // must leave the shipped data in control.
-              const tier = exp.tier ?? group.tier;
-              if (typeof tier === 'number') tiers.set(exp.facilityId, tier);
-            }
+          }[];
+        }>({
+          path: '/ea-vas/planning/api/v1/experiences/availability/bundles/experiences',
+          data: {
+            parkId: park.id,
+            date,
+            guestIds: [await this.primaryGuestId()],
+            existingOfferIds: [],
+            orderId: null,
+          },
+        });
+        const tiers = new Map<Experience['id'], number | undefined>();
+        const closedIds: Experience['id'][] = [];
+        for (const group of data.tiers) {
+          for (const exp of group.experiences) {
+            if (!expIds.has(exp.facilityId)) closedIds.push(exp.facilityId);
+            // Never infer a tier from array position. An unlabeled response
+            // must leave the shipped data in control.
+            const tier = exp.tier ?? group.tier;
+            if (typeof tier === 'number') tiers.set(exp.facilityId, tier);
           }
-          this.#availabilityBundles[dateParkId] = { closedIds, tiers };
-        } catch (error) {
-          // Cached as "nothing to add" so the next poll does not pay for the
-          // same failure. Cleared with the rest of the day's state on reload.
-          console.error(error);
-          this.#availabilityBundles[dateParkId] = {
-            closedIds: [],
-            tiers: new Map(),
-          };
         }
+        this.#availabilityBundles[dateParkId] = { closedIds, tiers };
+      } catch (error) {
+        // Cached as "nothing to add" so the next poll does not pay for the
+        // same failure. Cleared with the rest of the day's state on reload.
+        console.error(error);
+        this.#availabilityBundles[dateParkId] = {
+          closedIds: [],
+          tiers: new Map(),
+        };
+      }
     }
 
     const bundle = this.#availabilityBundles[date + park.id];
     for (const id of bundle?.closedIds ?? []) {
-        if (expIds.has(id)) continue;
-        try {
-          exps.push({
-            ...this.resort.experience(id),
-            flex: { available: false },
-            standby: { available: false, unavailableReason: 'CLOSED' },
-          });
-        } catch (error) {
-          if (!(error instanceof InvalidId)) throw error;
-        }
+      if (expIds.has(id)) continue;
+      try {
+        exps.push({
+          ...this.resort.experience(id),
+          flex: { available: false },
+          standby: { available: false, unavailableReason: 'CLOSED' },
+        });
+      } catch (error) {
+        if (!(error instanceof InvalidId)) throw error;
+      }
     }
 
     for (const exp of exps) {

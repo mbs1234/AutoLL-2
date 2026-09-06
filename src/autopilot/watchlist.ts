@@ -96,8 +96,10 @@ export function targetApplies(
   parkId: string,
   date: string
 ): boolean {
-  return (!target.parkId || target.parkId === parkId) &&
-    (!target.date || target.date === date);
+  return (
+    (!target.parkId || target.parkId === parkId) &&
+    (!target.date || target.date === date)
+  );
 }
 
 /**

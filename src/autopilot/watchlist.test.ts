@@ -9,8 +9,8 @@ import {
   loadWatchList,
   matchWatchList,
   saveWatchList,
-  targetApplies,
   selectNewAlerts,
+  targetApplies,
 } from './watchlist';
 
 const BZ = '80010114';
@@ -261,8 +261,6 @@ describe('targetApplies()', () => {
   });
 
   it('keeps legacy targets available everywhere', () => {
-    expect(targetApplies({ experienceId: BZ }, 'mk', '2026-12-10')).toBe(
-      true
-    );
+    expect(targetApplies({ experienceId: BZ }, 'mk', '2026-12-10')).toBe(true);
   });
 });

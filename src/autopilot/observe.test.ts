@@ -70,7 +70,10 @@ describe('detectReopenings()', () => {
     expect(
       detectReopenings(
         new Map([['a', { available: false, temporarilyDown: true }]]),
-        new Map([['a', { available: false }], ['b', { available: true }]]),
+        new Map([
+          ['a', { available: false }],
+          ['b', { available: true }],
+        ]),
         new Set(['a'])
       )
     ).toEqual(['a']);
