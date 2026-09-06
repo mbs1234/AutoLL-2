@@ -54,13 +54,13 @@ import {
 } from '@/autopilot/observe';
 import { overlappingPlans } from '@/autopilot/overlap';
 import { wholePartyEligible } from '@/autopilot/party';
+import { tierLimitLifted } from '@/autopilot/passkey';
 import {
   GuestCache,
   entitlementsChanged,
   heldEntitlements,
   prewarmGuests,
 } from '@/autopilot/prewarm';
-import { tierLimitLifted } from '@/autopilot/passkey';
 import {
   isTier1,
   orderByPriority,
@@ -666,12 +666,10 @@ export default function AutopilotProvider({
     // constrains what the next can be, so when two attractions drop in the
     // same tick the order is the decision, not an implementation detail.
     const passkeyActive = activeTargets.some(target => target.passkey);
-    for (
-      const hit of orderByPriority(
-        hits,
-        forToday && passkeyActive && !redeemedToday
-      )
-    ) {
+    for (const hit of orderByPriority(
+      hits,
+      forToday && passkeyActive && !redeemedToday
+    )) {
       const { experience } = hit;
       // hit.target may carry a stripped window; the real one governs moving.
       const target = realTarget(experience.id) ?? hit.target;
@@ -973,11 +971,15 @@ export default function AutopilotProvider({
     // A passkey changes strategy only after Disney's own eligibility response
     // no longer reports the Tier 1 restriction for every selected guest. The
     // reservation alone is not evidence of a completed redemption.
-    const heldPasskey = forToday && activeTargets.some(
-      target => target.passkey && !!heldToday(target.experienceId)
-    );
+    const heldPasskey =
+      forToday &&
+      activeTargets.some(
+        target => target.passkey && !!heldToday(target.experienceId)
+      );
     const tierOne = experiences.find(
-      exp => isTier1(exp) && activeTargets.some(target => target.experienceId === exp.id)
+      exp =>
+        isTier1(exp) &&
+        activeTargets.some(target => target.experienceId === exp.id)
     );
     if (!passkeyActive) {
       passkeyUnlockedRef.current = false;
