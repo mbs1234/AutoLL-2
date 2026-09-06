@@ -49,7 +49,9 @@ export function orderByPriority(
 ): WatchHit[] {
   return [...hits].sort(
     (a, b) =>
-      (passkeyFirst ? Number(!a.target.passkey) - Number(!b.target.passkey) : 0) ||
+      (passkeyFirst
+        ? Number(!a.target.passkey) - Number(!b.target.passkey)
+        : 0) ||
       (a.target.rank ?? Infinity) - (b.target.rank ?? Infinity) ||
       comparePriority(a.experience, b.experience)
   );
