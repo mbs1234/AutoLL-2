@@ -127,15 +127,32 @@ export function detectReopenings(
  * skipped: the first poll of a session sees everything as "new", which is not
  * a drop.
  */
+/**
+ * Availability flips worth learning from, restricted to what is being watched.
+ *
+ * `watchedIds` is the bound that keeps this honest. Recording every attraction
+ * on the tipboard sounds strictly better -- more evidence -- but the events
+ * feed `learnedDropTimes`, which promotes any minute seen on two distinct days
+ * into a burst target. Away from a scheduled drop, an availability flip is
+ * somebody cancelling, and cancellations happen all day across a whole park.
+ * With refill-window polling sampling every six seconds for hours, two park
+ * days is enough to promote that noise into burst bands that tile the middle
+ * of the day -- the thing the refill window was introduced to avoid.
+ *
+ * Watched attractions are also the only ones the schedule is ever consulted
+ * for, so nothing actionable is lost.
+ */
 export function detectDropEvents(
   prev: Snapshot,
   next: Snapshot,
   now: ParkTime,
-  date: string
+  date: string,
+  watchedIds?: ReadonlySet<string>
 ): DropEvent[] {
   const time = `${String(now.hour).padStart(2, '0')}:${String(now.minute).padStart(2, '0')}`;
   const events: DropEvent[] = [];
   for (const [experienceId, n] of next) {
+    if (watchedIds && !watchedIds.has(experienceId)) continue;
     const p = prev.get(experienceId);
     if (!p) continue;
     if (!p.available && n.available) {

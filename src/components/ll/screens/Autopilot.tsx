@@ -56,7 +56,16 @@ const MODE_TEXT: Record<PollerStatus['mode'], string> = {
   stopped: 'Stopped after repeated errors',
 };
 
-function isDemotedSchedule(coveredDays: number, observedDays: number) {
+/**
+ * Whether the evidence for one scheduled time is entirely negative.
+ *
+ * Not the same as "the poller has stopped bursting at it". That decision is
+ * made per minute across the whole park -- a minute stays active while any
+ * attraction sharing it still has evidence -- and demotion does not act at
+ * all yet (see DEMOTION_ENABLED). So this describes the evidence, and the
+ * copy below says so rather than claiming the time is unused.
+ */
+function hasOnlyNegativeEvidence(coveredDays: number, observedDays: number) {
   return coveredDays >= DEMOTION_MIN_COVERED_DAYS && observedDays === 0;
 }
 
@@ -789,15 +798,21 @@ export default function Autopilot() {
                         <Time time={c.time} />{' '}
                         <span
                           className={
-                            isDemotedSchedule(c.coveredDays, c.observedDays)
+                            hasOnlyNegativeEvidence(
+                              c.coveredDays,
+                              c.observedDays
+                            )
                               ? 'text-red-700'
                               : 'text-gray-500'
                           }
                         >
                           {c.coveredDays === 0
                             ? '(not watched yet)'
-                            : isDemotedSchedule(c.coveredDays, c.observedDays)
-                              ? `(not used after ${c.coveredDays} watched days)`
+                            : hasOnlyNegativeEvidence(
+                                  c.coveredDays,
+                                  c.observedDays
+                                )
+                              ? `(never seen in ${c.coveredDays} watched days)`
                               : `(seen ${c.observedDays} of ${c.coveredDays} watched)`}
                         </span>
                       </span>

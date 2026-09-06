@@ -142,11 +142,20 @@ export class LLClientWDW extends LLClient {
     const exps = await super.experiences(park, date);
     const expIds = new Set(exps.map(exp => exp.id));
 
-    // This endpoint is supplementary: its explicit tier labels protect the
-    // static table from seasonal changes, while its omissions let us display
-    // closed attractions. Cache per park/date so an active poller never pays
-    // this extra request more than once for the same plan.
-    if (!this.#availabilityBundles[date + park.id]) {
+    // Supplementary, and only where the tipboard leaves a gap: a future date,
+    // or a park that reported nothing at all. Cached per park/date so an
+    // active poller never pays for it more than once.
+    //
+    // Not on an ordinary day-of poll. What this appends are closed
+    // attractions, and they enter `snapshotOf` with `available: false` from
+    // the first poll -- so the moment one opens, the drop learner sees an
+    // unavailable-to-available flip and files a ride simply starting its day
+    // as a drop. A future date cannot hit that, because learning is skipped
+    // for any date that is not today.
+    if (
+      (date > parkDate() || exps.length === 0) &&
+      !this.#availabilityBundles[date + park.id]
+    ) {
       const dateParkId = date + park.id;
       // Best effort, and deliberately unable to fail the call it enriches.
       //
@@ -214,13 +223,25 @@ export class LLClientWDW extends LLClient {
       }
     }
 
+    // Reported, not applied.
+    //
+    // Assigning `exp.tier` here rewrites the tier on tipboard experiences
+    // only. A booking builds its experience from `resort.experience(id)`,
+    // which this never touches -- so in exactly the case worth warning about,
+    // the two halves of the app disagreed about the same attraction. That
+    // breaks the comparisons that span them: ExistingBookings' "this would
+    // spend a tier slot you already hold", and MultiPassList's "earlier than
+    // what you already booked in this tier".
+    //
+    // One curated table stays in control. PLAN.md 3.2 and 9.11 both argue
+    // against inferring tiers from this endpoint, and a disagreement is a
+    // prompt to check the data rather than something to silently act on.
     for (const exp of exps) {
       const liveTier = bundle?.tiers.get(exp.id);
       if (liveTier === undefined || liveTier === exp.tier) continue;
       console.warn(
         `Live tier differs for ${exp.name}: data=${exp.tier ?? 'none'}, live=${liveTier}`
       );
-      exp.tier = liveTier;
     }
 
     return exps;

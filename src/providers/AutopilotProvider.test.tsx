@@ -1216,6 +1216,10 @@ describe('AutopilotProvider persistence and diagnostics', () => {
 });
 
 describe('AutopilotProvider drop learning', () => {
+  // The learner only records what is being watched, so these have to arm
+  // something to have anything to learn from.
+  beforeEach(() => saveWatchList([{ experienceId: BZ }]));
+
   function setupSequence(polls: Experience[][]) {
     // Explicit return type: an inferred `async () => []` is Promise<never[]>,
     // which rejects the real experiences queued below.
@@ -1285,6 +1289,24 @@ describe('AutopilotProvider drop learning', () => {
       kind: 'appeared',
       date: TODAY,
     });
+  });
+
+  // The bound that keeps learning useful. Away from a scheduled drop an
+  // availability flip is somebody cancelling, and with refill-window polling
+  // sampling every six seconds for hours, recording the whole tipboard
+  // promotes that noise into burst bands within two park days.
+  it('ignores an attraction that is not being watched', async () => {
+    saveWatchList([{ experienceId: DB }]);
+    const { pollExperiences } = setupSequence([
+      [unavailable(BZ)],
+      [available(BZ, new ParkTime(11))],
+    ]);
+    await enable();
+    await waitFor(() => expect(pollExperiences).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(60_000);
+    });
+    expect(loadDropEvents().some(e => e.experienceId === BZ)).toBe(false);
   });
 
   // The first poll of a run is a baseline; seeing something available on it

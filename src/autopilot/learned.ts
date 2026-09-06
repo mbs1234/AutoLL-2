@@ -17,6 +17,40 @@ export const LEARNED_MIN_DAYS = 2;
 export const DEMOTION_MIN_COVERED_DAYS = 3;
 
 /**
+ * Whether local evidence may remove a scheduled drop time from the poller.
+ *
+ * Off, and deliberately. The rule is `coveredDays >= N && observedDays === 0`,
+ * but those two counts are derived from stores that disagree on four separate
+ * axes, so "covered and never observed" does not currently mean "the drop did
+ * not fire":
+ *
+ * - Retention. Events are capped by count (MAX_EVENTS, global across parks);
+ *   coverage is capped by park day. When a day's events are evicted and its
+ *   coverage row survives, a day that *did* see the drop reads as evidence
+ *   against it.
+ * - Span. A day counts as covered if the poller sampled the scheduled time's
+ *   5-minute bucket or the next one -- about ten minutes -- while an
+ *   observation has to land in a four-minute window. Sampling the wider span
+ *   says nothing about the narrower one.
+ * - Subject. Coverage is recorded once per park-day tick and is not
+ *   conditioned on the attraction being in the payload at all. An attraction
+ *   under refurbishment accrues covered days it can never observe against.
+ * - Density. Refill-window polling multiplies recorded events without changing
+ *   what coverage means, so the two counts drift further apart the harder the
+ *   poller runs.
+ *
+ * Demotion is the only part of drop learning that can make the poller *worse*
+ * -- it removes a burst the schedule asked for -- and it cannot help inside a
+ * single trip anyway, since it needs several covered days and starts from an
+ * empty store. Evidence is still gathered and still shown on screen; it just
+ * does not act yet.
+ *
+ * Re-enable once coverage is recorded per scheduled drop time rather than per
+ * park day, so both counts derive from the same evidence.
+ */
+export const DEMOTION_ENABLED = false;
+
+/**
  * Drop times learned from observation, for the attractions in one park.
  *
  * The poller bursts per park, not per attraction, so the times are unioned
@@ -76,7 +110,10 @@ export function mergeDropTimes(
 export function activeScheduledDropTimes(
   schedule: ReadonlyMap<string, ParkTime[]>,
   summaries: DropSummary[],
-  minCoveredDays = DEMOTION_MIN_COVERED_DAYS
+  minCoveredDays = DEMOTION_MIN_COVERED_DAYS,
+  // Explicit so the mechanism stays exercised while the default is off; see
+  // DEMOTION_ENABLED for why it is.
+  enabled = DEMOTION_ENABLED
 ): ParkTime[] {
   const summariesByExperience = new Map(
     summaries.map(summary => [summary.experienceId, summary])
@@ -88,6 +125,7 @@ export function activeScheduledDropTimes(
     for (const time of times) {
       const check = checks.find(candidate => +candidate.time === +time);
       const demoted =
+        enabled &&
         check &&
         check.coveredDays >= minCoveredDays &&
         check.observedDays === 0;

@@ -1,6 +1,7 @@
 import { ParkTime } from '@/datetime';
 
 import {
+  DEMOTION_ENABLED,
   DEMOTION_MIN_COVERED_DAYS,
   LEARNED_MIN_DAYS,
   activeScheduledDropTimes,
@@ -132,21 +133,28 @@ describe('activeScheduledDropTimes()', () => {
     ['b', [at(15, 47)]],
   ]);
 
+  // The mechanism, exercised explicitly: DEMOTION_ENABLED is false, so these
+  // pass `true` to keep it under test while it is not acting.
   it('demotes a time only after several fully covered zero-observation days', () => {
-    const active = activeScheduledDropTimes(scheduled, [
-      {
-        experienceId: 'a',
-        observed: [],
-        scheduled: [
-          {
-            time: at(9, 47),
-            observedDays: 0,
-            coveredDays: DEMOTION_MIN_COVERED_DAYS,
-          },
-          { time: at(15, 47), observedDays: 1, coveredDays: 5 },
-        ],
-      },
-    ]);
+    const active = activeScheduledDropTimes(
+      scheduled,
+      [
+        {
+          experienceId: 'a',
+          observed: [],
+          scheduled: [
+            {
+              time: at(9, 47),
+              observedDays: 0,
+              coveredDays: DEMOTION_MIN_COVERED_DAYS,
+            },
+            { time: at(15, 47), observedDays: 1, coveredDays: 5 },
+          ],
+        },
+      ],
+      DEMOTION_MIN_COVERED_DAYS,
+      true
+    );
     expect(active).toEqual([at(15, 47)]);
   });
 
@@ -175,6 +183,38 @@ describe('activeScheduledDropTimes()', () => {
 
   it('keeps a shared minute while another attraction has not been demoted', () => {
     expect(
+      activeScheduledDropTimes(
+        scheduled,
+        [
+          {
+            experienceId: 'a',
+            observed: [],
+            scheduled: [
+              {
+                time: at(9, 47),
+                observedDays: 0,
+                coveredDays: DEMOTION_MIN_COVERED_DAYS,
+              },
+              {
+                time: at(15, 47),
+                observedDays: 0,
+                coveredDays: DEMOTION_MIN_COVERED_DAYS,
+              },
+            ],
+          },
+        ],
+        DEMOTION_MIN_COVERED_DAYS,
+        true
+      )
+    ).toEqual([at(15, 47)]);
+  });
+
+  // What actually ships. Demotion is the only part of drop learning that can
+  // remove a burst the schedule asked for, and its evidence is not yet sound
+  // enough to act on -- see DEMOTION_ENABLED.
+  it('removes nothing by default, however damning the evidence', () => {
+    expect(DEMOTION_ENABLED).toBe(false);
+    expect(
       activeScheduledDropTimes(scheduled, [
         {
           experienceId: 'a',
@@ -183,16 +223,11 @@ describe('activeScheduledDropTimes()', () => {
             {
               time: at(9, 47),
               observedDays: 0,
-              coveredDays: DEMOTION_MIN_COVERED_DAYS,
-            },
-            {
-              time: at(15, 47),
-              observedDays: 0,
-              coveredDays: DEMOTION_MIN_COVERED_DAYS,
+              coveredDays: DEMOTION_MIN_COVERED_DAYS * 10,
             },
           ],
         },
       ])
-    ).toEqual([at(15, 47)]);
+    ).toEqual([at(9, 47), at(15, 47)]);
   });
 });

@@ -420,8 +420,12 @@ export default function AutopilotProvider({
                       replacedName: outcome.replaced.name,
                       fromTime: outcome.replaced.time,
                       returnTime: outcome.to,
-                      reason:
-                        'a higher-priority target replaced the lowest-ranked held reservation',
+                      // Not "the lowest-ranked": chooseSwapVictim sorts
+                      // non-Tier-1 candidates first and only then by rank,
+                      // preferring to give up something easier to claim
+                      // again. Naming the reservation is both accurate and
+                      // more use than describing the rule.
+                      reason: `a higher-priority target replaced ${outcome.replaced.name}`,
                     }
                   : outcome.status === 'dry-run'
                     ? {
@@ -464,16 +468,16 @@ export default function AutopilotProvider({
       const observedAt = syncedParkTime();
       const obsDate = date;
       const next = snapshotOf(experiences);
-      const reopened = detectReopenings(
-        snapshotRef.current,
-        next,
-        new Set(activeTargets.map(target => target.experienceId))
+      const watchedIds = new Set(
+        activeTargets.map(target => target.experienceId)
       );
+      const reopened = detectReopenings(snapshotRef.current, next, watchedIds);
       const events = detectDropEvents(
         snapshotRef.current,
         next,
         observedAt,
-        obsDate
+        obsDate,
+        watchedIds
       );
       snapshotRef.current = next;
       for (const id of reopened) {
