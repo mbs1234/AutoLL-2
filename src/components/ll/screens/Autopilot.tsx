@@ -683,7 +683,7 @@ export default function Autopilot() {
                             ? '(not watched yet)'
                             : isDemotedSchedule(c.coveredDays, c.observedDays)
                               ? `(not used after ${c.coveredDays} watched days)`
-                            : `(seen ${c.observedDays} of ${c.coveredDays} watched)`}
+                              : `(seen ${c.observedDays} of ${c.coveredDays} watched)`}
                         </span>
                       </span>
                     ))}
