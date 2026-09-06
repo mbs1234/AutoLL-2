@@ -75,7 +75,18 @@ function checkCache(
   init: RequestInit,
   requester: () => Promise<JsonResponse>
 ) {
-  const key = init.method + url;
+  // StrictMode can issue the same data request twice in immediate succession.
+  // The old key was just method + URL, so two POSTs to one endpoint with
+  // different bodies could receive each other's response.  Only cache bodies
+  // we can represent exactly, and include the headers because callers may use
+  // the same endpoint under different request contexts.
+  if (init.body !== undefined && typeof init.body !== 'string') {
+    return requester();
+  }
+  const headers = [...new Headers(init.headers).entries()].sort(
+    ([a], [b]) => a.localeCompare(b)
+  );
+  const key = JSON.stringify([init.method, url, init.body ?? null, headers]);
   const entry = cache[key];
   if (entry) return entry;
   const response = requester();

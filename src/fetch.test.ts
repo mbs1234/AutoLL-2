@@ -57,6 +57,16 @@ describe('fetchJson()', () => {
     });
   });
 
+  it('does not share cached POST responses with a different body', async () => {
+    jest.mocked(fetch).mockClear();
+    mockFetch({ ok: true }, { 'content-type': 'application/json' });
+    await Promise.all([
+      fetchJson(url, { data: { name: 'Mickey' } }),
+      fetchJson(url, { data: { name: 'Minnie' } }),
+    ]);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
   it('adds params to URL', async () => {
     await fetchJson(url, { params: { start: 5, end: 15 } });
     expect(fetch).toHaveBeenLastCalledWith(url + '?start=5&end=15', {
