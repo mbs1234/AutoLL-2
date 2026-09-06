@@ -47,12 +47,12 @@ The **LL** tab is the main availability list. Use it to change the park, select 
 
 The clock button is a status indicator:
 
-| Color | Meaning |
-| --- | --- |
-| Gray | Autopilot is off. |
-| Green | Autopilot is watching. |
+| Color  | Meaning                                                        |
+| ------ | -------------------------------------------------------------- |
+| Gray   | Autopilot is off.                                              |
+| Green  | Autopilot is watching.                                         |
 | Yellow | Dry run is on: it evaluates actions but does not perform them. |
-| Red | Autopilot stopped after repeated errors and needs attention. |
+| Red    | Autopilot stopped after repeated errors and needs attention.   |
 
 The badge is the number of watched attractions in the currently loaded park.
 
@@ -70,22 +70,25 @@ Open Autopilot with the clock button on the LL tab. First, star the Multi Pass a
 
 For each watched attraction, choose the actions you want:
 
-| Control | What it does |
-| --- | --- |
-| **Auto-book** | Books the attraction when it becomes available inside its return-time window. |
-| **Auto-move** | Tries to improve a reservation you already hold. A move must be at least 30 minutes earlier, never later, and inside the window. |
+| Control            | What it does                                                                                                                                 |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Auto-book**      | Books the attraction when it becomes available inside its return-time window.                                                                |
+| **Auto-move**      | Tries to improve a reservation you already hold. A move must be at least 30 minutes earlier, never later, and inside the window.             |
 | **Book then move** | Takes the first available time, even if it is outside the window, then tries to move it into the window. It implies Auto-book and Auto-move. |
-| **Pause** | Continues watching and alerting, but prevents actions for that attraction. |
-| **Swap in** | If all Multi Pass slots are occupied, may replace a lower-priority held reservation for this attraction. |
-| **Passkey** | Marks an easy, non-Tier-1 target to prioritize before the first redemption of the day. It does not enable Auto-book by itself. |
+| **Pause**          | Continues watching and alerting, but prevents actions for that attraction.                                                                   |
+| **Swap in**        | If all Multi Pass slots are occupied, may replace a lower-priority held reservation for this attraction.                                     |
+| **Passkey**        | Marks an easy, non-Tier-1 target to prioritize before the first redemption of the day. It does not enable Auto-book by itself.               |
 
 #### Passkey and tap-in strategy
 
 A **passkey** is an easy early Lightning Lane selected to help open up the rest
 of the day. Mark one non-Tier-1 target as Passkey, enable the action you want
-for it, and redeem it with the selected party. AutoLL-2 then checks Disney's
-eligibility response; it only reports the Tier 1 hold unlocked after Disney no
-longer reports that restriction for every selected guest. This matters for
+for it, and redeem it with the selected party. AutoLL-2 waits until the pass
+has actually been tapped in, then checks Disney's eligibility response; it
+only reports the Tier 1 hold unlocked once the redemption is recorded **and**
+Disney no longer reports that restriction for any selected guest. Both halves
+are needed: Disney only reports the restriction to a party already holding a
+Tier 1, so on its own the eligibility check says nothing. This matters for
 parties with different redemption progress or attractions requiring more than
 one touch point.
 
@@ -101,12 +104,12 @@ The window controls what Autopilot will take, move to, or swap for. It does not 
 
 #### Global Autopilot settings
 
-| Setting | Default | Meaning |
-| --- | --- | --- |
-| **Dry run** | Off | Rehearses every check and records what it would do, but does not book, move, or swap. Use this first. |
-| **Whole party only** | Off | Requires every guest in the saved party to be eligible before AutoLL-2 acts. With it off, it may act for the eligible guests. |
-| **Avoid clashes** | On | Refuses a return time that overlaps an existing reservation or dining plan. |
-| **Actions per day** | 10 | Daily cap shared by bookings, moves, and swaps. Adjustable from 1 to 50; AutoLL-2 continues watching after the cap is reached. |
+| Setting              | Default | Meaning                                                                                                                        |
+| -------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **Dry run**          | Off     | Rehearses every check and records what it would do, but does not book, move, or swap. Use this first.                          |
+| **Whole party only** | Off     | Requires every guest in the saved party to be eligible before AutoLL-2 acts. With it off, it may act for the eligible guests.  |
+| **Avoid clashes**    | On      | Refuses a return time that overlaps an existing reservation or dining plan.                                                    |
+| **Actions per day**  | 10      | Daily cap shared by bookings, moves, and swaps. Adjustable from 1 to 50; AutoLL-2 continues watching after the cap is reached. |
 
 Autopilot's running state is intentionally not restored after a reload. Its watch list and settings are saved, but you must turn it on again.
 
@@ -151,13 +154,13 @@ next Lightning Lane time, active plan targets and ranks, and passkey status.
 
 ## Troubleshooting
 
-| Symptom | What to check |
-| --- | --- |
-| Nothing is loading | Confirm you launched AutoLL-2 from a supported Disney page, then refresh and sign in again if needed. |
-| Autopilot appears slow | Keep the tab foregrounded. Check its status for a backoff message or a stopped state. |
-| It watches but does not act | Check Dry run, paused targets, return-time windows, whole-party eligibility, clashes, and the daily action budget. |
-| NextLL stopped | It stops when you leave its tab. Return to NextLL and choose **Resume**. |
-| A ride is missing | Refresh the LL list. If Disney's tipboard contains an unknown attraction ID, AutoLL-2 displays an unknown-attraction notice. |
+| Symptom                     | What to check                                                                                                                |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Nothing is loading          | Confirm you launched AutoLL-2 from a supported Disney page, then refresh and sign in again if needed.                        |
+| Autopilot appears slow      | Keep the tab foregrounded. Check its status for a backoff message or a stopped state.                                        |
+| It watches but does not act | Check Dry run, paused targets, return-time windows, whole-party eligibility, clashes, and the daily action budget.           |
+| NextLL stopped              | It stops when you leave its tab. Return to NextLL and choose **Resume**.                                                     |
+| A ride is missing           | Refresh the LL list. If Disney's tipboard contains an unknown attraction ID, AutoLL-2 displays an unknown-attraction notice. |
 
 ## Development
 

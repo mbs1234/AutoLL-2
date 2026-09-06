@@ -46,13 +46,27 @@ export default function DaySummary() {
         <ul className="text-sm">
           {lanes.map(lane => (
             <li key={lane.id} className="py-1">
-              <span className="font-semibold">{lane.name}</span> &mdash;{' '}
-              <Time time={lane.start.time} /> to <Time time={lane.end.time} />
-              <span className="text-gray-600">
-                {' '}
-                (grace scan until{' '}
-                <Time time={lane.end.time.add({ minutes: 119 })} />)
-              </span>
+              <span className="font-semibold">{lane.name}</span>
+              {/* `isLLMP` asserts start and end are DateTimes, but the
+                  itinerary parser does not honour that: a pass carried over
+                  from an earlier park day comes back with a date and no time.
+                  Dereferencing `.time` there throws, and a throw while
+                  rendering this screen unmounts the provider above it --
+                  taking the running watcher down with the screen. */}
+              {lane.start?.time && lane.end?.time ? (
+                <>
+                  {' '}
+                  &mdash; <Time time={lane.start.time} /> to{' '}
+                  <Time time={lane.end.time} />
+                  <span className="text-gray-600">
+                    {' '}
+                    (grace scan until{' '}
+                    <Time time={lane.end.time.add({ minutes: 119 })} />)
+                  </span>
+                </>
+              ) : (
+                <span className="text-gray-600"> &mdash; no return time</span>
+              )}
             </li>
           ))}
         </ul>

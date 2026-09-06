@@ -41,12 +41,15 @@ function setup({
   status = OFF,
   enabled = false,
   notifications = 'granted' as AlertPermission,
+  targets,
   ...rest
 }: Partial<AutopilotState> & {
   experiences?: Experience[];
   watched?: string[];
   unknownExperienceIds?: string[];
 } = {}) {
+  const effectiveTargets =
+    targets ?? watched.map(experienceId => ({ experienceId }));
   const setEnabled = jest.fn();
   const addTarget = jest.fn();
   const removeTarget = jest.fn();
@@ -79,13 +82,16 @@ function setup({
             enabled,
             setEnabled,
             status,
-            targets: watched.map(experienceId => ({ experienceId })),
-            // Mirrors the provider: a target for another park is stored but
-            // inert, so the screen must not count it as being watched.
-            targetsHere: (experiences.length === 0
-              ? watched
-              : watched.filter(id => experiences.some(e => e.id === id))
-            ).map(experienceId => ({ experienceId })),
+            targets: effectiveTargets,
+            // Derived from the same list the test supplied, exactly as the
+            // provider derives it -- otherwise a test that sets flags on
+            // `targets` gets a `targetsHere` with none of them, and every
+            // assertion about what the screen says is armed reads false.
+            targetsHere: effectiveTargets.filter(
+              t =>
+                experiences.length === 0 ||
+                experiences.some(e => e.id === t.experienceId)
+            ),
             isWatched: (id: string) => watched.includes(id),
             addTarget,
             removeTarget,

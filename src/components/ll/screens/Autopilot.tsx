@@ -51,7 +51,7 @@ const SKIP_TEXT: Record<string, string> = {
 const MODE_TEXT: Record<PollerStatus['mode'], string> = {
   off: 'Off',
   idle: 'Watching',
-  approach: 'Drop approaching',
+  approach: 'Checking often',
   burst: 'Checking rapidly',
   stopped: 'Stopped after repeated errors',
 };
@@ -248,17 +248,23 @@ export default function Autopilot() {
   const { bookingDate } = use(BookingDateContext);
   const { ll } = use(ClientsContext);
 
+  // Scoped to the park and date on screen. `targets` is the whole saved list
+  // across every park and every date, so looking a row up in it returns
+  // whichever entry happens to match the id first -- and after targets became
+  // park/date-scoped that can be a different day's settings, shown against
+  // today's row and edited by today's toggles. The same applies to the summary
+  // flags below, which describe what Autopilot will do here and now.
   const targetFor = (experienceId: string) =>
-    targets.find(t => t.experienceId === experienceId);
-  const anyAutoBook = targets.some(t => t.autoBook);
-  const anyAutoModify = targets.some(t => t.autoModify);
-  const anyBookThenMove = targets.some(t => t.bookThenMove);
-  const pausedCount = targets.filter(t => t.paused).length;
-  const anyAutoSwap = targets.some(t => t.autoSwap);
+    targetsHere.find(t => t.experienceId === experienceId);
+  const anyAutoBook = targetsHere.some(t => t.autoBook);
+  const anyAutoModify = targetsHere.some(t => t.autoModify);
+  const anyBookThenMove = targetsHere.some(t => t.bookThenMove);
+  const pausedCount = targetsHere.filter(t => t.paused).length;
+  const anyAutoSwap = targetsHere.some(t => t.autoSwap);
   // Any armed action spends the budget, so any of them should see the count.
   // Gating it on auto-book alone hid it from anyone running only book-then-move
   // or swap -- both of which imply booking.
-  const anyAction = targets.some(
+  const anyAction = targetsHere.some(
     t => t.autoBook || t.autoModify || t.bookThenMove || t.autoSwap
   );
 
@@ -453,8 +459,9 @@ export default function Autopilot() {
       <h3>Watching ({targetsHere.length})</h3>
       {targets.length > targetsHere.length && (
         <p className="text-xs text-gray-600">
-          {targets.length - targetsHere.length} more saved for another park.
-          Autopilot only acts on the park loaded here.
+          {targets.length - targetsHere.length} more saved for another park or
+          date, or not on this park&rsquo;s list today. Autopilot only acts on
+          what is loaded here.
         </p>
       )}
       {watched.length > 0 && (

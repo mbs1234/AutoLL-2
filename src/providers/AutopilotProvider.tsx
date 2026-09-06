@@ -219,7 +219,12 @@ export default function AutopilotProvider({
   const tickCountRef = useRef(0);
   const targetsRef = useRef(targets);
   targetsRef.current = targets;
-  const passkeyUnlockedRef = useRef(false);
+  // The park day the passkey unlock was established for, or undefined while
+  // locked. Keyed rather than boolean: the old flag was cleared only by
+  // turning autopilot off and on, so a tab left open across a booking-date
+  // change or the 4am rollover carried yesterday's unlock -- and an unlock
+  // silently disables the Tier 1 hold.
+  const passkeyUnlockedForRef = useRef<string | undefined>(undefined);
   const bookingDateRef = useRef(bookingDate);
   bookingDateRef.current = bookingDate;
   // Read at tick time: setState from a plans poll has not re-rendered yet
@@ -643,7 +648,8 @@ export default function AutopilotProvider({
     // lift the Tier 1 hold on a booking for next Tuesday.
     const redeemedToday =
       forToday &&
-      (passkeyUnlockedRef.current || experiences.some(exp => exp.experienced));
+      (passkeyUnlockedForRef.current === date ||
+        experiences.some(exp => exp.experienced));
 
     // Targets that could still consume a Tier 1 slot: armed for booking, and
     // not already held. The tier hold has to reason about attractions that
@@ -968,13 +974,25 @@ export default function AutopilotProvider({
       });
     }
 
-    // A passkey changes strategy only after Disney's own eligibility response
-    // no longer reports the Tier 1 restriction for every selected guest. The
-    // reservation alone is not evidence of a completed redemption.
-    const heldPasskey =
+    // A passkey unlocks the strategy only once it has actually been redeemed,
+    // and Disney's own eligibility response then agrees.
+    //
+    // The redemption half is what makes the eligibility half mean anything.
+    // `TIER_LIMIT_REACHED` is only reported to a party that already holds a
+    // Tier 1, so on a party holding none -- which is the state the hold exists
+    // to protect -- `tierLimitLifted` is trivially true. Probing on a merely
+    // *held* passkey therefore unlocked at the moment the passkey was booked,
+    // switched `redeemedToday` on, and disabled the Tier 1 hold for the rest
+    // of the session. Both this function's own comment and the README already
+    // said a reservation is not evidence of a redemption; only the code
+    // disagreed.
+    const redeemedPasskey =
       forToday &&
       activeTargets.some(
-        target => target.passkey && !!heldToday(target.experienceId)
+        target =>
+          target.passkey &&
+          !!heldToday(target.experienceId) &&
+          ll.experienced({ id: target.experienceId })
       );
     const tierOne = experiences.find(
       exp =>
@@ -982,14 +1000,14 @@ export default function AutopilotProvider({
         activeTargets.some(target => target.experienceId === exp.id)
     );
     if (!passkeyActive) {
-      passkeyUnlockedRef.current = false;
+      passkeyUnlockedForRef.current = undefined;
       setPasskeyStatus('off');
-    } else if (passkeyUnlockedRef.current) {
+    } else if (passkeyUnlockedForRef.current === date) {
       setPasskeyStatus('unlocked');
-    } else if (heldPasskey && tierOne) {
+    } else if (redeemedPasskey && tierOne) {
       const guests = await guestsFor(tierOne.id, date);
       if (tierLimitLifted(guests)) {
-        passkeyUnlockedRef.current = true;
+        passkeyUnlockedForRef.current = date;
         cacheRef.current.clear();
         setPasskeyStatus('unlocked');
         fireAlert({
@@ -1111,7 +1129,7 @@ export default function AutopilotProvider({
         // Fresh baseline: the first poll of a run sees everything as "new", and
         // that must read as a baseline rather than a drop.
         snapshotRef.current = new Map();
-        passkeyUnlockedRef.current = false;
+        passkeyUnlockedForRef.current = undefined;
         setPasskeyStatus('off');
       }
       setEnabledState(on);
@@ -1160,6 +1178,13 @@ export default function AutopilotProvider({
         ...target,
         parkId: target.parkId ?? park.id,
         date: target.date ?? bookingDate,
+        // Recorded when the target is armed, because that is the last moment
+        // the name is guaranteed to be known. It exists so a target Disney
+        // stops listing can still be named on screen -- and nothing set it, so
+        // the "not on today's list" panel could only ever show facility ids.
+        name:
+          target.name ??
+          experiences.find(exp => exp.id === target.experienceId)?.name,
       };
       setTargets(prev => [
         ...prev.filter(
@@ -1170,7 +1195,7 @@ export default function AutopilotProvider({
         scoped,
       ]);
     },
-    [park.id, bookingDate]
+    [park.id, bookingDate, experiences]
   );
 
   const removeTarget = useCallback(

@@ -52,7 +52,13 @@ export interface DropEvent {
 
 export type Snapshot = Map<
   string,
-  { available: boolean; next?: ParkTime; temporarilyDown?: boolean }
+  {
+    available: boolean;
+    next?: ParkTime;
+    temporarilyDown?: boolean;
+    /** Whether the standby queue is open, which is what "reopened" means. */
+    standbyOpen?: boolean;
+  }
 >;
 
 /** Minutes since the park day began (4am), which orders correctly across midnight. */
@@ -73,6 +79,7 @@ export function snapshotOf(experiences: Experience[]): Snapshot {
     snap.set(exp.id, {
       available: !!exp.flex.available,
       next: exp.flex.nextAvailableTime,
+      standbyOpen: !!exp.standby?.available,
       ...(exp.standby?.unavailableReason === 'TEMPORARILY_DOWN'
         ? { temporarilyDown: true }
         : {}),
@@ -96,10 +103,16 @@ export function detectReopenings(
   const reopened: string[] = [];
   for (const [id, current] of next) {
     const previous = prev.get(id);
+    // Leaving TEMPORARILY_DOWN is not the same as coming back. The reason can
+    // just as easily become CLOSED at the end of the night, or
+    // NOT_STANDBY_ENABLED, or NO_MORE_SHOWS -- all of which cleared the flag
+    // and fired a "back up" alert for a ride that had in fact shut. Requiring
+    // standby to be open is the difference.
     if (
       watchedIds.has(id) &&
       previous?.temporarilyDown === true &&
-      !current.temporarilyDown
+      !current.temporarilyDown &&
+      current.standbyOpen === true
     ) {
       reopened.push(id);
     }
@@ -145,6 +158,12 @@ export function coverageKey(parkId: string, date: string): string {
   return `${parkId}:${date}`;
 }
 
+/** The date half of a coverage key, for pruning and for reading one back. */
+export function coverageDate(key: string): string {
+  const colon = key.indexOf(':');
+  return colon === -1 ? key : key.slice(colon + 1);
+}
+
 export function coverageBucket(time: ParkTime): number {
   return Math.floor(dayMinutes(time) / COVERAGE_BUCKET_MIN);
 }
@@ -170,12 +189,23 @@ export function recordCoverage(
     ...coverage,
     [key]: [...existing, bucket].sort((a, b) => a - b),
   };
-  const dates = Object.keys(next).sort();
-  for (const stale of dates.slice(
-    0,
-    Math.max(0, dates.length - MAX_COVERAGE_DAYS)
-  )) {
-    delete next[stale];
+  // Prune by date, not by key. The key gained a park prefix when coverage
+  // became park-scoped, and `Object.keys().sort()` then ordered by park id
+  // first -- so the cap stopped meaning "the last 30 park days" and became a
+  // global budget that always evicted the lexicographically smallest park.
+  // At Walt Disney World that is Animal Kingdom (80007823), whose coverage was
+  // therefore discarded first, feeding `coveredDays >= 3 && observedDays === 0`
+  // with days it had no evidence for.
+  //
+  // Keeping the newest MAX_COVERAGE_DAYS *dates* keeps every park's history
+  // for the same span, which is what demotion compares across.
+  const keep = new Set(
+    [...new Set(Object.keys(next).map(coverageDate))]
+      .sort()
+      .slice(-MAX_COVERAGE_DAYS)
+  );
+  for (const key of Object.keys(next)) {
+    if (!keep.has(coverageDate(key))) delete next[key];
   }
   return { coverage: next, changed: true };
 }

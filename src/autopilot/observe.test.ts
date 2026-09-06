@@ -13,6 +13,7 @@ import {
   Snapshot,
   appendDropEvents,
   coverageBucket,
+  coverageDate,
   coverageKey,
   dayMinutes,
   detectDropEvents,
@@ -66,17 +67,31 @@ describe('day minutes', () => {
 });
 
 describe('detectReopenings()', () => {
-  it('reports watched attractions leaving a temporary closure', () => {
+  it('reports watched attractions whose standby queue comes back', () => {
     expect(
       detectReopenings(
         new Map([['a', { available: false, temporarilyDown: true }]]),
         new Map([
-          ['a', { available: false }],
-          ['b', { available: true }],
+          ['a', { available: false, standbyOpen: true }],
+          ['b', { available: true, standbyOpen: true }],
         ]),
         new Set(['a'])
       )
     ).toEqual(['a']);
+  });
+
+  // Leaving TEMPORARILY_DOWN is not the same as coming back: the reason can
+  // become CLOSED at the end of the night, or NOT_STANDBY_ENABLED, and the
+  // flag clears either way. Alerting there says a ride is back up when it has
+  // in fact shut for the day.
+  it('does not report a ride that closed rather than reopened', () => {
+    expect(
+      detectReopenings(
+        new Map([['a', { available: false, temporarilyDown: true }]]),
+        new Map([['a', { available: false, standbyOpen: false }]]),
+        new Set(['a'])
+      )
+    ).toEqual([]);
   });
 
   it('does not report an unwatched or baseline attraction', () => {
@@ -96,8 +111,16 @@ describe('snapshotOf()', () => {
       exp('a', { available: true, nextAvailableTime: at(11) }),
       exp('b', { available: false }),
     ]);
-    expect(s.get('a')).toEqual({ available: true, next: at(11) });
-    expect(s.get('b')).toEqual({ available: false, next: undefined });
+    expect(s.get('a')).toEqual({
+      available: true,
+      next: at(11),
+      standbyOpen: false,
+    });
+    expect(s.get('b')).toEqual({
+      available: false,
+      next: undefined,
+      standbyOpen: false,
+    });
   });
 
   it('ignores attractions with no flex offer at all', () => {
@@ -430,5 +453,55 @@ describe('storage', () => {
     expect(loadCoverage()).toEqual({ [D1]: [1] });
     kvdb.set(COVERAGE_KEY, [1, 2]);
     expect(loadCoverage()).toEqual({});
+  });
+});
+
+// The cap is "the last N park days", and it went wrong when the key gained a
+// park prefix: sorting keys then ordered by park id, so one park was always
+// evicted first and the cap became a global budget.
+describe('recordCoverage() pruning', () => {
+  const AK = '80007823'; // sorts first of the four WDW parks
+  const HS = '80007998'; // sorts last
+  const day = (n: number) => `2026-12-${String(n).padStart(2, '0')}`;
+
+  function fill(parks: string[], days: number): Coverage {
+    let coverage: Coverage = {};
+    for (let d = 1; d <= days; ++d) {
+      for (const park of parks) {
+        coverage = recordCoverage(
+          coverage,
+          coverageKey(park, day(d)),
+          new ParkTime(9)
+        ).coverage;
+      }
+    }
+    return coverage;
+  }
+
+  it('keeps every park for the days it keeps', () => {
+    const coverage = fill([AK, HS], 20);
+    const dates = new Set(Object.keys(coverage).map(coverageDate));
+    for (const date of dates) {
+      expect(coverage[coverageKey(AK, date)]).toBeDefined();
+      expect(coverage[coverageKey(HS, date)]).toBeDefined();
+    }
+  });
+
+  // The bug: with four parks the 30-key cap was reached in eight days, and
+  // Animal Kingdom -- lexicographically first -- was discarded every time.
+  it('does not evict one park before another', () => {
+    const coverage = fill([AK, HS], 25);
+    const akDays = Object.keys(coverage).filter(k => k.startsWith(AK)).length;
+    const hsDays = Object.keys(coverage).filter(k => k.startsWith(HS)).length;
+    expect(akDays).toBe(hsDays);
+    expect(akDays).toBeGreaterThan(0);
+  });
+
+  it('keeps the most recent dates, not the earliest', () => {
+    const coverage = fill([AK], MAX_COVERAGE_DAYS + 5);
+    const dates = [...new Set(Object.keys(coverage).map(coverageDate))].sort();
+    expect(dates).toHaveLength(MAX_COVERAGE_DAYS);
+    expect(dates.at(-1)).toBe(day(MAX_COVERAGE_DAYS + 5));
+    expect(dates[0]).toBe(day(6));
   });
 });
