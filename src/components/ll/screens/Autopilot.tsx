@@ -88,7 +88,8 @@ function StatusRow({
       {status.refillWindow && !status.target && (
         <div>
           <span className="font-semibold">Refill window:</span>{' '}
-          <Time time={status.refillWindow.start} />&ndash;
+          <Time time={status.refillWindow.start} />
+          &ndash;
           <Time time={status.refillWindow.end} />
         </div>
       )}

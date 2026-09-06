@@ -1,5 +1,5 @@
-import { ParkTime } from '@/datetime';
 import type { RefillWindow } from '@/autopilot/schedule';
+import { ParkTime } from '@/datetime';
 
 export class Theme {
   readonly color;

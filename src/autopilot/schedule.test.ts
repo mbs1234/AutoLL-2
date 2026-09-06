@@ -4,12 +4,12 @@ import {
   APPROACH_INTERVAL_MS,
   BACKOFF_BASE_MS,
   BACKOFF_CAP_MS,
+  BURST_LEAD_S,
   BURST_INTERVAL_MS,
   IDLE_INTERVAL_MS,
   MIN_INTERVAL_MS,
   RAPID_INTERVAL_MS,
   RAPID_MIN_INTERVAL_MS,
-  BURST_LEAD_S,
   backoffMs,
   cadence,
   secondsUntil,
@@ -117,9 +117,9 @@ describe('cadence()', () => {
   });
 
   it('picks the soonest approach target when several are in range', () => {
-    const c = cadence({ now: at(9, 44), dropTimes: [at(9, 47), at(9, 45)] });
+    const c = cadence({ now: at(9, 43), dropTimes: [at(9, 48), at(9, 47)] });
     expect(c.mode).toBe('approach');
-    expect(c.secondsToTarget).toBe(60);
+    expect(c.secondsToTarget).toBe(240);
   });
 
   it('lets a burst target win over a nearer approach target', () => {
