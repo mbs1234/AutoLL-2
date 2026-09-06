@@ -32,12 +32,17 @@ import {
   heldMPToday,
   shouldSwap,
 } from '@/autopilot/autoswap';
-import { learnedDropTimes, mergeDropTimes } from '@/autopilot/learned';
+import {
+  activeScheduledDropTimes,
+  learnedDropTimes,
+  mergeDropTimes,
+} from '@/autopilot/learned';
 import {
   Coverage,
   DropSummary,
   Snapshot,
   appendDropEvents,
+  coverageKey,
   detectDropEvents,
   loadCoverage,
   loadDropEvents,
@@ -258,7 +263,12 @@ export default function AutopilotProvider({
   const coverageRef = useRef<Coverage>(loadCoverage());
   const [dropSummaries, setDropSummaries] = useState<DropSummary[]>(() => {
     // Whatever was learned on earlier visits, before today's first poll.
-    return summarizeDrops(loadDropEvents(), coverageRef.current, new Map());
+    return summarizeDrops(
+      loadDropEvents(),
+      coverageRef.current,
+      park.dropSchedule,
+      park.id
+    );
   });
   const [bookedCount, setBookedCount] = useState(0);
   // Mirrors the ledger rather than being derived from `bookedCount`: an
@@ -429,7 +439,11 @@ export default function AutopilotProvider({
         obsDate
       );
       snapshotRef.current = next;
-      const cov = recordCoverage(coverageRef.current, obsDate, observedAt);
+      const cov = recordCoverage(
+        coverageRef.current,
+        coverageKey(park.id, obsDate),
+        observedAt
+      );
       if (cov.changed) {
         coverageRef.current = cov.coverage;
         saveCoverage(cov.coverage);
@@ -438,12 +452,14 @@ export default function AutopilotProvider({
       // 5-minute window -- never on the ordinary tick.
       if (events.length > 0 || cov.changed) {
         const all = appendDropEvents(events);
-        const schedule = new Map(
-          experiences
-            .filter(exp => exp.dropTimes && exp.dropTimes.length > 0)
-            .map(exp => [exp.id, exp.dropTimes!])
+        setDropSummaries(
+          summarizeDrops(
+            all,
+            coverageRef.current,
+            park.dropSchedule,
+            park.id
+          )
         );
-        setDropSummaries(summarizeDrops(all, coverageRef.current, schedule));
       }
     }
 
@@ -918,6 +934,7 @@ export default function AutopilotProvider({
     logOutcome,
     bumpSkip,
     repeatMoves,
+    park,
   ]);
 
   // The schedule the poller actually times itself to: the hardcoded drop
@@ -931,7 +948,7 @@ export default function AutopilotProvider({
   const effectiveDropTimes = useMemo(
     () =>
       mergeDropTimes(
-        park.dropTimes,
+        activeScheduledDropTimes(park.dropSchedule, dropSummaries),
         learnedDropTimes(dropSummaries, parkExperienceIds)
       ),
     [park, dropSummaries, parkExperienceIds]

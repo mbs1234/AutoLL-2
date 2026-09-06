@@ -29,6 +29,11 @@ describe('Resort', () => {
     );
   });
 
+  it('keeps the per-attraction source schedule for safe demotion', () => {
+    expect(mk.dropSchedule.get(tron.id)).toEqual(tron.dropTimes);
+    expect(mk.dropSchedule.get(tba.id)).toEqual(tba.dropTimes);
+  });
+
   it('revives configured refill-window times as ParkTime values', () => {
     const testTrack = wdw.experience('80010199');
     expect(testTrack.refillWindows).toEqual([

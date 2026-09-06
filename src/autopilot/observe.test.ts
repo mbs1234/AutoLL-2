@@ -13,6 +13,7 @@ import {
   Snapshot,
   appendDropEvents,
   coverageBucket,
+  coverageKey,
   dayMinutes,
   detectDropEvents,
   fromDayMinutes,
@@ -309,6 +310,19 @@ describe('summarizeDrops()', () => {
       observedDays: 0,
       coveredDays: 0,
     });
+  });
+
+  it('does not count coverage recorded for a different park', () => {
+    const [s] = summarizeDrops(
+      [],
+      {
+        [coverageKey('epcot', D1)]: [coverageBucket(at(9, 47))],
+        [coverageKey('mk', D2)]: [coverageBucket(at(9, 47))],
+      },
+      new Map([['a', [at(9, 47)]]]),
+      'mk'
+    );
+    expect(s!.scheduled[0]).toMatchObject({ coveredDays: 1 });
   });
 
   it('reports attractions that drop on no written schedule', () => {

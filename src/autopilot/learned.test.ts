@@ -1,6 +1,12 @@
 import { ParkTime } from '@/datetime';
 
-import { LEARNED_MIN_DAYS, learnedDropTimes, mergeDropTimes } from './learned';
+import {
+  DEMOTION_MIN_COVERED_DAYS,
+  LEARNED_MIN_DAYS,
+  activeScheduledDropTimes,
+  learnedDropTimes,
+  mergeDropTimes,
+} from './learned';
 import { DropSummary } from './observe';
 
 const at = (h: number, m = 0) => new ParkTime(h, m);
@@ -117,5 +123,76 @@ describe('mergeDropTimes()', () => {
     mergeDropTimes(scheduled, learned);
     expect(scheduled).toEqual([at(15, 47), at(9, 47)]);
     expect(learned).toEqual([at(11, 47)]);
+  });
+});
+
+describe('activeScheduledDropTimes()', () => {
+  const scheduled = new Map([
+    ['a', [at(9, 47), at(15, 47)]],
+    ['b', [at(15, 47)]],
+  ]);
+
+  it('demotes a time only after several fully covered zero-observation days', () => {
+    const active = activeScheduledDropTimes(scheduled, [
+      {
+        experienceId: 'a',
+        observed: [],
+        scheduled: [
+          {
+            time: at(9, 47),
+            observedDays: 0,
+            coveredDays: DEMOTION_MIN_COVERED_DAYS,
+          },
+          { time: at(15, 47), observedDays: 1, coveredDays: 5 },
+        ],
+      },
+    ]);
+    expect(active).toEqual([at(15, 47)]);
+  });
+
+  it('keeps a schedule when the evidence is incomplete or it fired once', () => {
+    expect(
+      activeScheduledDropTimes(scheduled, [
+        {
+          experienceId: 'a',
+          observed: [],
+          scheduled: [
+            {
+              time: at(9, 47),
+              observedDays: 0,
+              coveredDays: DEMOTION_MIN_COVERED_DAYS - 1,
+            },
+            {
+              time: at(15, 47),
+              observedDays: 1,
+              coveredDays: DEMOTION_MIN_COVERED_DAYS,
+            },
+          ],
+        },
+      ])
+    ).toEqual([at(9, 47), at(15, 47)]);
+  });
+
+  it('keeps a shared minute while another attraction has not been demoted', () => {
+    expect(
+      activeScheduledDropTimes(scheduled, [
+        {
+          experienceId: 'a',
+          observed: [],
+          scheduled: [
+            {
+              time: at(9, 47),
+              observedDays: 0,
+              coveredDays: DEMOTION_MIN_COVERED_DAYS,
+            },
+            {
+              time: at(15, 47),
+              observedDays: 0,
+              coveredDays: DEMOTION_MIN_COVERED_DAYS,
+            },
+          ],
+        },
+      ])
+    ).toEqual([at(15, 47)]);
   });
 });

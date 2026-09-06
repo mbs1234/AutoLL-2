@@ -1292,7 +1292,9 @@ describe('AutopilotProvider drop learning', () => {
     const { pollExperiences } = setupSequence([[unavailable(BZ)]]);
     await enable();
     await waitFor(() => expect(pollExperiences).toHaveBeenCalled());
-    await waitFor(() => expect(Object.keys(loadCoverage())).toContain(TODAY));
+    await waitFor(() =>
+      expect(Object.keys(loadCoverage())).toContain(`${mk.id}:${TODAY}`)
+    );
   });
 });
 

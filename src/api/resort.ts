@@ -21,6 +21,8 @@ export interface Park {
   color: string;
   theme: Theme;
   dropTimes: ParkTime[];
+  /** Per-attraction schedule, retained so stale entries can be demoted safely. */
+  dropSchedule: ReadonlyMap<string, ParkTime[]>;
 }
 
 export interface Land {
@@ -48,7 +50,7 @@ export interface Experience {
   highlight?: boolean;
 }
 
-type ParkData = Omit<Park, 'dropTimes' | 'theme'>;
+type ParkData = Omit<Park, 'dropTimes' | 'dropSchedule' | 'theme'>;
 type LandData = Omit<Land, 'park' | 'theme'> & { park: ParkData };
 export type ExperienceData = Omit<
   Experience,
@@ -115,6 +117,11 @@ export class Resort {
       ]
         .map(t => t[1])
         .sort();
+      park.dropSchedule = new Map(
+        this.dropExpsByPark
+          .get(park)
+          ?.map(exp => [exp.id, exp.dropTimes ?? []])
+      );
       this.dropExpsByPark
         .get(park)
         ?.sort((a, b) => a.name.localeCompare(b.name));

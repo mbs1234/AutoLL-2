@@ -105,15 +105,20 @@ export function detectDropEvents(
   return events;
 }
 
-/** Which 5-minute buckets of which park days the poller was running for. */
+/** Which 5-minute buckets of which scoped park days the poller was running for. */
 export type Coverage = Record<string, number[]>;
+
+/** A coverage key is scoped to a park so one park's quiet day never demotes another's schedule. */
+export function coverageKey(parkId: string, date: string): string {
+  return `${parkId}:${date}`;
+}
 
 export function coverageBucket(time: ParkTime): number {
   return Math.floor(dayMinutes(time) / COVERAGE_BUCKET_MIN);
 }
 
 /**
- * Note that the poller was active at `now` on `date`.
+ * Note that the poller was active at `now` for one scoped park day.
  *
  * Returns the new coverage and whether anything changed, so callers can skip
  * a save (and a summary recompute) on the overwhelmingly common no-change
@@ -121,17 +126,17 @@ export function coverageBucket(time: ParkTime): number {
  */
 export function recordCoverage(
   coverage: Coverage,
-  date: string,
+  key: string,
   now: ParkTime
 ): { coverage: Coverage; changed: boolean } {
   const bucket = coverageBucket(now);
-  const existing = coverage[date] ?? [];
+  const existing = coverage[key] ?? [];
   if (existing.includes(bucket)) return { coverage, changed: false };
   // Numeric comparator on purpose: the default sort is lexicographic and would
   // order [132, 60] as-is.
   const next: Coverage = {
     ...coverage,
-    [date]: [...existing, bucket].sort((a, b) => a - b),
+    [key]: [...existing, bucket].sort((a, b) => a - b),
   };
   const dates = Object.keys(next).sort();
   for (const stale of dates.slice(
@@ -185,7 +190,8 @@ function parseEventMinutes(event: DropEvent): number | undefined {
 export function summarizeDrops(
   events: DropEvent[],
   coverage: Coverage,
-  schedule: Map<string, ParkTime[]>
+  schedule: ReadonlyMap<string, ParkTime[]>,
+  coverageParkId?: string
 ): DropSummary[] {
   const byExp = new Map<string, { minutes: number; date: string }[]>();
   for (const event of events) {
@@ -244,8 +250,9 @@ export function summarizeDrops(
       );
       const bucket = coverageBucket(time);
       const coveredDates = Object.entries(coverage).filter(
-        ([, buckets]) =>
-          buckets.includes(bucket) || buckets.includes(bucket + 1)
+        ([key, buckets]) =>
+          (!coverageParkId || key.startsWith(`${coverageParkId}:`)) &&
+          (buckets.includes(bucket) || buckets.includes(bucket + 1))
       );
       return {
         time,

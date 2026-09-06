@@ -2,7 +2,10 @@ import { use, useEffect, useState } from 'react';
 
 import { Experience } from '@/api/ll';
 import { MAX_ACTIONS_PER_DAY, MIN_ACTIONS_PER_DAY } from '@/autopilot/autobook';
-import { LEARNED_MIN_DAYS } from '@/autopilot/learned';
+import {
+  DEMOTION_MIN_COVERED_DAYS,
+  LEARNED_MIN_DAYS,
+} from '@/autopilot/learned';
 import {
   CALL_TEXT,
   NO_REFUSALS,
@@ -667,13 +670,17 @@ export default function Autopilot() {
                         <Time time={c.time} />{' '}
                         <span
                           className={
-                            c.coveredDays > 0 && c.observedDays === 0
+                            c.coveredDays >= DEMOTION_MIN_COVERED_DAYS &&
+                            c.observedDays === 0
                               ? 'text-red-700'
                               : 'text-gray-500'
                           }
                         >
                           {c.coveredDays === 0
                             ? '(not watched yet)'
+                            : c.coveredDays >= DEMOTION_MIN_COVERED_DAYS &&
+                                c.observedDays === 0
+                              ? `(not used after ${c.coveredDays} watched days)`
                             : `(seen ${c.observedDays} of ${c.coveredDays} watched)`}
                         </span>
                       </span>

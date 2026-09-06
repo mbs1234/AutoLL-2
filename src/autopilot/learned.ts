@@ -13,6 +13,8 @@ import { CLUSTER_TOLERANCE_MIN, DropSummary, dayMinutes } from './observe';
  * not one.
  */
 export const LEARNED_MIN_DAYS = 2;
+/** Fully watched zero-observation days required before a schedule is demoted. */
+export const DEMOTION_MIN_COVERED_DAYS = 3;
 
 /**
  * Drop times learned from observation, for the attractions in one park.
@@ -62,4 +64,35 @@ export function mergeDropTimes(
     if (!covered) merged.push(time);
   }
   return merged.sort((a, b) => +a - +b);
+}
+
+/**
+ * The hardcoded schedule after removing entries contradicted by enough local
+ * evidence. A time is removed only for an attraction that was watched at that
+ * exact time on several distinct days and never produced a drop. Since the
+ * poller runs per park, a shared minute stays active while any attraction at
+ * that minute still has an undemoted schedule.
+ */
+export function activeScheduledDropTimes(
+  schedule: ReadonlyMap<string, ParkTime[]>,
+  summaries: DropSummary[],
+  minCoveredDays = DEMOTION_MIN_COVERED_DAYS
+): ParkTime[] {
+  const summariesByExperience = new Map(
+    summaries.map(summary => [summary.experienceId, summary])
+  );
+  const active = new Map<number, ParkTime>();
+
+  for (const [experienceId, times] of schedule) {
+    const checks = summariesByExperience.get(experienceId)?.scheduled ?? [];
+    for (const time of times) {
+      const check = checks.find(candidate => +candidate.time === +time);
+      const demoted =
+        check &&
+        check.coveredDays >= minCoveredDays &&
+        check.observedDays === 0;
+      if (!demoted) active.set(+time, time);
+    }
+  }
+  return [...active.values()].sort((a, b) => +a - +b);
 }
