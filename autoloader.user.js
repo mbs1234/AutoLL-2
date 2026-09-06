@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         BG1 Autoloader
+// @name         AutoLL-2 Autoloader
 // @namespace    https://joelface.github.io/bg1/
 // @version      0.3
-// @description  Automatically loads the BG1 interface
+// @description  Automatically loads the AutoLL-2 interface
 // @author       Joel Bruick
 // @match        https://joelface.github.io/bg1/start.html
 // @match        https://disneyworld.disney.go.com/vas/
