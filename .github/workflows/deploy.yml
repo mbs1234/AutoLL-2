@@ -3,7 +3,7 @@ name: Build and deploy BG1
 # The app bundle and the static site around it live on two different
 # branches with no shared history:
 #
-#   mickey - TypeScript/React source. `vite build` emits ONLY bg1.js,
+#   main - TypeScript/React source. `vite build` emits ONLY bg1.js,
 #            bg1.css, responder.html and their chunks (see the
 #            rollupOptions.input list in vite.config.mts).
 #   goofy  - upstream's published Pages output. It is the only place the
@@ -11,13 +11,13 @@ name: Build and deploy BG1
 #            bookmarklet), start.html, news.html, contact.html,
 #            autoloader.user.js, icon.png, index.css.
 #
-# Building mickey alone gives you an app with no way to install or launch
-# it. This workflow builds fresh code from mickey, then overlays the static
+# Building main alone gives you an app with no way to install or launch
+# it. This workflow builds fresh code from main, then overlays the static
 # pages from goofy, then repoints upstream URLs at this fork.
 
 on:
   push:
-    branches: [mickey]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -33,13 +33,13 @@ concurrency:
 env:
   # Origin this fork is served from. Must match `base` in vite.config.mts
   # and the responderPage URL in src/components/LoginForm.tsx.
-  PAGES_ORIGIN: https://mbs1234.github.io/AutoLL
+  PAGES_ORIGIN: https://mbs1234.github.io/AutoLL-2
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out source (mickey)
+      - name: Check out source (main)
         uses: actions/checkout@v4
 
       - name: Check out static site (goofy)

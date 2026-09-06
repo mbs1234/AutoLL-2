@@ -1,13 +1,13 @@
 # AutoLL
 
-An unofficial client for Lightning Lane Multi Pass and virtual queue boarding groups at Walt Disney World. Upstream refreshes when you tap refresh; AutoLL watches for you, alerts you, and — if you arm it — books.
+An unofficial client for Lightning Lane Multi Pass and virtual queue boarding groups at Walt Disney World. Upstream refreshes when you tap refresh; AutoLL-2 watches for you, alerts you, and — if you arm it — books.
 
 Built on two people's work, and **GPL-3.0-only** like both:
 
 - **[joelface/bg1](https://github.com/joelface/bg1)** by Joel Face — the original, and everything underneath this: the Lightning Lane, virtual queue, DAS and itinerary clients, the UI, the login flow. For background, read the [upstream documentation](https://joelface.github.io/bg1/).
 - **[jgeurts/bg1](https://github.com/jgeurts/bg1)** — restores Lightning Lane booking at Walt Disney World, and adds tier grouping, availability sorting, an existing-bookings view, and offer auto-refresh.
 
-On top of those this repository adds Autopilot and NextLL, corrected attraction data, and the build and deploy plumbing to run independently. Deployed at **<https://mbs1234.github.io/AutoLL/>**.
+On top of those this repository adds Autopilot and NextLL, corrected attraction data, and the build and deploy plumbing to run independently. Deployed at **<https://mbs1234.github.io/AutoLL-2/>**.
 
 **WARNING! Use at your own risk. This is highly experimental, for demonstration purposes only, and provided "as is" without warranty of any kind. It is in no way endorsed by or associated with the Walt Disney Company and could stop working at any time for any reason. To ensure the intended experience, always use the official Disney app.**
 
@@ -19,7 +19,7 @@ On top of those this repository adds Autopilot and NextLL, corrected attraction 
 
 ## Install
 
-1. Open <https://mbs1234.github.io/AutoLL/> on your phone and install the bookmarklet (or userscript).
+1. Open <https://mbs1234.github.io/AutoLL-2/> on your phone and install the bookmarklet (or userscript).
 2. Run it on `disneyworld.disney.go.com/vas/` and sign in.
 3. On iOS, add the page to your Home Screen if you want notifications; without that you still get the chime.
 
@@ -138,7 +138,7 @@ npm run build:fork    # vite build, keeping the diu stub
 npm start             # dev server
 ```
 
-Upstream ships a red test suite — 8 suites fail in a clean checkout of upstream `mickey`, mostly stale fixtures. CI gates on `test:ci` so it stays a useful signal, and runs the full suite for visibility. See **[FORK.md](FORK.md)** for the exclusion list, the booking history and how to sync upstream, and **[docs/PLAN.md](docs/PLAN.md)** for the research behind the data corrections and what is planned next. Pushing to `mickey` builds and deploys to GitHub Pages, merging in the static pages from `goofy`.
+Upstream ships a red test suite — 8 suites fail in a clean checkout of upstream `mickey`, mostly stale fixtures. CI gates on `test:ci` so it stays a useful signal, and runs the full suite for visibility. See **[FORK.md](FORK.md)** for the exclusion list, the booking history and how to sync upstream, and **[docs/PLAN.md](docs/PLAN.md)** for the research behind the data corrections and what is planned next. Pushing to `main` builds and deploys to GitHub Pages, merging in the static pages from `goofy`.
 
 ## Acknowledgments
 

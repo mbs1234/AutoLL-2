@@ -2,7 +2,7 @@
 
 Built on [joelface/bg1](https://github.com/joelface/bg1) and
 [jgeurts/bg1](https://github.com/jgeurts/bg1), both GPL-3.0-only.
-Deployed to <https://mbs1234.github.io/AutoLL/>.
+Deployed to <https://mbs1234.github.io/AutoLL-2/>.
 
 ## Why a plain `mickey` build does not work
 
@@ -27,15 +27,15 @@ Three separate gaps, worth understanding before touching the build:
 
 ## How this fork resolves them
 
-`.github/workflows/deploy.yml` builds `mickey`, overlays the static pages
+`.github/workflows/deploy.yml` builds `main`, overlays the static pages
 from `goofy`, rewrites upstream URLs, and deploys to Pages:
 
 ```
-mickey (source) ──► npm run build:fork ──► dist/
+main (source) ──► npm run build:fork ──► dist/
 goofy  (static) ──► overlay index/start/news/contact/autoloader/icon/css
                     (never overwriting freshly built bg1.js, bg1.css,
                      responder.html or their chunks)
-                 ──► sed joelface.github.io/bg1 → mbs1234.github.io/AutoLL
+                 ──► sed joelface.github.io/bg1 → mbs1234.github.io/AutoLL-2
                  ──► GitHub Pages
 ```
 
@@ -106,7 +106,7 @@ all work regardless, and are the bulk of what this repository adds.
 
 Login works from this fork's own origin (confirmed on device 2026-09-04).
 Disney's OneID does **not** allowlist the `responderPage` redirect URI, so
-`https://mbs1234.github.io/AutoLL/responder.html` authenticates normally. This was
+`https://mbs1234.github.io/AutoLL-2/responder.html` authenticates normally. This was
 the main risk in forking at all -- had OneID validated redirect URIs against a
 registered allowlist, no amount of build fixing would have produced a working
 fork.

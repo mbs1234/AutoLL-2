@@ -104,7 +104,7 @@ describe('App', () => {
     renderComponent();
     await waitFor(() => {
       expect(navigate).toHaveBeenCalledWith(
-        'https://mbs1234.github.io/AutoLL/start.html'
+        'https://mbs1234.github.io/AutoLL-2/start.html'
       );
     });
   });
