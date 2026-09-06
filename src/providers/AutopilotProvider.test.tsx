@@ -90,6 +90,7 @@ function Probe() {
     refillBudget,
     setMaxActionsPerDay,
     refusals,
+    passkeyStatus,
   } = use(AutopilotContext);
   return (
     <div>
@@ -100,6 +101,7 @@ function Probe() {
       <span data-testid="targets">{targets.length}</span>
       <span data-testid="remaining">{bookingsRemaining}</span>
       <span data-testid="budget">{actionBudget}</span>
+      <span data-testid="passkey">{passkeyStatus}</span>
       <span data-testid="refused">
         {refusedCalls(refusals ?? NO_REFUSALS, syncedParkTime()).join(',')}
       </span>
@@ -236,6 +238,10 @@ function setupBooking({
   repeatMoves = false,
   // Lets a test make `book` fail, and say how. `undefined` succeeds.
   bookErrors = [] as (number | 'no-response' | undefined)[],
+  // Ids LLTracker would mark redeemed. The passkey turns on the strategy only
+  // after a tap-in, so this is the difference between held and redeemed.
+  experiencedIds = [] as string[],
+  bookingDate = TODAY,
 } = {}) {
   const guests = jest.fn(async () => {
     if (guestsStatus !== undefined) {
@@ -278,51 +284,56 @@ function setupBooking({
     polled = next;
   };
   const pollPlans = jest.fn(async () => polled);
-  render(
-    <BookingDateContext
-      value={{ bookingDate: TODAY, setBookingDate: () => {} }}
-    >
-      <ClientsContext
-        // Two-step cast: with the jest.Mock members present this no longer
-        // merely omits properties from Clients, it conflicts with them.
-        value={
-          {
-            ll: {
-              nextBookTimes,
-              guests,
-              offer,
-              book,
-              experienced: () => false,
-            },
-          } as unknown as Clients
-        }
+  function Tree({ date }: { date: string }) {
+    return (
+      <BookingDateContext
+        value={{ bookingDate: date, setBookingDate: () => {} }}
       >
-        <ParkContext value={{ park: mk, setPark: () => {} }}>
-          <ExperiencesContext
-            value={{
-              experiences: [],
-              refreshExperiences: () => {},
-              pollExperiences: async () => experiences,
-              loaderElem: null,
-            }}
-          >
-            <PlansContext
+        <ClientsContext
+          // Two-step cast: with the jest.Mock members present this no longer
+          // merely omits properties from Clients, it conflicts with them.
+          value={
+            {
+              ll: {
+                nextBookTimes,
+                guests,
+                offer,
+                book,
+                experienced: ({ id }: { id: string }) =>
+                  experiencedIds.includes(id),
+              },
+            } as unknown as Clients
+          }
+        >
+          <ParkContext value={{ park: mk, setPark: () => {} }}>
+            <ExperiencesContext
               value={{
-                plans,
-                refreshPlans: () => {},
-                pollPlans,
+                experiences: [],
+                refreshExperiences: () => {},
+                pollExperiences: async () => experiences,
                 loaderElem: null,
               }}
             >
-              <AutopilotProvider repeatMoves={repeatMoves}>
-                <Probe />
-              </AutopilotProvider>
-            </PlansContext>
-          </ExperiencesContext>
-        </ParkContext>
-      </ClientsContext>
-    </BookingDateContext>
-  );
+              <PlansContext
+                value={{
+                  plans,
+                  refreshPlans: () => {},
+                  pollPlans,
+                  loaderElem: null,
+                }}
+              >
+                <AutopilotProvider repeatMoves={repeatMoves}>
+                  <Probe />
+                </AutopilotProvider>
+              </PlansContext>
+            </ExperiencesContext>
+          </ParkContext>
+        </ClientsContext>
+      </BookingDateContext>
+    );
+  }
+  const view = render(<Tree date={bookingDate} />);
+
   return {
     guests,
     offer,
@@ -331,6 +342,8 @@ function setupBooking({
     offeredIds,
     offerOptions,
     setPolledPlans,
+    /** Move the app onto another booking date, as the LL tab's picker does. */
+    setBookingDate: (date: string) => view.rerender(<Tree date={date} />),
   };
 }
 
@@ -2044,5 +2057,89 @@ describe('AutopilotProvider with a second provider mounted inside it', () => {
     await act(async () => leaveNextLL());
     expect(loadWatchList()).toHaveLength(1);
     expect(screen.getByTestId('targets')).toHaveTextContent('1');
+  });
+});
+
+// The passkey is the one feature that can switch the Tier 1 hold off, so the
+// two ways it must NOT do that are worth pinning at the provider rather than
+// only on the pure predicate. `tierLimitLifted` is trivially true for a party
+// holding no Tier 1 -- Disney only reports TIER_LIMIT_REACHED to a party that
+// already holds one -- so before this the probe passed the moment a passkey
+// was booked.
+describe('AutopilotProvider passkey', () => {
+  beforeEach(() => setTime('09:00'));
+
+  const PASSKEY = BZ;
+  const TIER_ONE = DB;
+
+  /** The passkey sitting in plans, which is not the same as tapped in. */
+  function heldPasskey(): Booking {
+    return {
+      type: 'LL',
+      subtype: 'MP',
+      id: 'ent-passkey',
+      facilityId: PASSKEY,
+      name: 'Passkey',
+      start: new DateTime(TODAY, new ParkTime(10)),
+      end: new DateTime(TODAY, new ParkTime(11)),
+      modifiable: true,
+      guests: [],
+    } as unknown as Booking;
+  }
+
+  const armed = () =>
+    saveWatchList([
+      { experienceId: PASSKEY, passkey: true, autoBook: true },
+      { experienceId: TIER_ONE, autoBook: true },
+    ]);
+
+  const withTierOne = () => [
+    available(PASSKEY, new ParkTime(11)),
+    { ...available(TIER_ONE, new ParkTime(11)), tier: 1 } as FlexExperience,
+  ];
+
+  it('does not unlock for a passkey that is only booked', async () => {
+    armed();
+    setupBooking({ experiences: withTierOne(), plans: [heldPasskey()] });
+    await enable();
+    await runTicks(2);
+    expect(screen.getByTestId('passkey')).toHaveTextContent('waiting');
+  });
+
+  it('unlocks once the passkey has been tapped in', async () => {
+    armed();
+    setupBooking({
+      experiences: withTierOne(),
+      plans: [heldPasskey()],
+      experiencedIds: [PASSKEY],
+    });
+    await enable();
+    await waitFor(() =>
+      expect(screen.getByTestId('passkey')).toHaveTextContent('unlocked')
+    );
+  });
+
+  // The unlock was a bare boolean cleared only by turning autopilot off and
+  // on, so a tab left open across the 4am rollover or a change of booking date
+  // carried yesterday's unlock into a day it says nothing about.
+  it('does not carry an unlock onto another day', async () => {
+    armed();
+    const { setBookingDate } = setupBooking({
+      experiences: withTierOne(),
+      plans: [heldPasskey()],
+      experiencedIds: [PASSKEY],
+    });
+    await enable();
+    // Establish the unlock for today first -- without that there is nothing to
+    // carry, and the assertion below would hold for the wrong reason.
+    await waitFor(() =>
+      expect(screen.getByTestId('passkey')).toHaveTextContent('unlocked')
+    );
+
+    await act(async () => setBookingDate(TOMORROW));
+    await runTicks(2);
+    // The passkey was redeemed *today*. Nothing about tomorrow is established,
+    // so the Tier 1 hold has to stand again.
+    expect(screen.getByTestId('passkey')).not.toHaveTextContent('unlocked');
   });
 });
