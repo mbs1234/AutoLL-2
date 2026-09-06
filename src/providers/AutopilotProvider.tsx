@@ -1206,8 +1206,7 @@ export default function AutopilotProvider({
           const next = { ...target };
           if (typeof rank === 'number' && Number.isFinite(rank)) {
             next.rank = rank;
-          }
-          else delete next.rank;
+          } else delete next.rank;
           return next;
         })
       );

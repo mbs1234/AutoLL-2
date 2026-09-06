@@ -13,8 +13,8 @@ import {
   refusedCalls,
 } from '@/autopilot/refusal';
 import { MAX_CONSECUTIVE_FAILURES, syncedParkTime } from '@/autopilot/schedule';
-import { targetApplies } from '@/autopilot/watchlist';
 import { PollerStatus } from '@/autopilot/usePoller';
+import { targetApplies } from '@/autopilot/watchlist';
 import Button from '@/components/Button';
 import Disclosure from '@/components/Disclosure';
 import Screen from '@/components/Screen';
@@ -243,7 +243,7 @@ export default function Autopilot() {
   const { ll } = use(ClientsContext);
 
   const targetFor = (experienceId: string) =>
-    targetsHere.find(t => t.experienceId === experienceId);
+    targets.find(t => t.experienceId === experienceId);
   const anyAutoBook = targets.some(t => t.autoBook);
   const anyAutoModify = targets.some(t => t.autoModify);
   const anyBookThenMove = targets.some(t => t.bookThenMove);
@@ -693,7 +693,7 @@ export default function Autopilot() {
                 title={`Watch ${exp.name}`}
                 color="bg-gray-200 text-black"
                 onClick={() =>
-                  addTarget({ experienceId: exp.id, name: exp.name })
+                  addTarget({ experienceId: exp.id })
                 }
               >
                 <StarIcon />
