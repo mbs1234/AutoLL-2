@@ -83,14 +83,17 @@ For each watched attraction, choose the actions you want:
 
 A **passkey** is an easy early Lightning Lane selected to help open up the rest
 of the day. Mark one non-Tier-1 target as Passkey, enable the action you want
-for it, and redeem it with the selected party. AutoLL-2 waits until the pass
-has actually been tapped in, then checks Disney's eligibility response; it
-only reports the Tier 1 hold unlocked once the redemption is recorded **and**
-Disney no longer reports that restriction for any selected guest. Both halves
-are needed: Disney only reports the restriction to a party already holding a
-Tier 1, so on its own the eligibility check says nothing. This matters for
-parties with different redemption progress or attractions requiring more than
-one touch point.
+for it, and redeem it with the selected party. AutoLL-2 waits until the pass is
+spent, then checks Disney's eligibility response; it only reports the Tier 1
+hold unlocked once both are true. Both halves are needed: Disney only reports
+the restriction to a party already holding a Tier 1, so on its own the
+eligibility check says nothing. This matters for parties with different
+redemption progress or attractions requiring more than one touch point.
+
+"Spent" is what can actually be established, and it covers a pass whose window
+lapsed unused as well as one that was tapped in — Disney counts both as ridden.
+That is the right test here, because the tier limit turns on the entitlement
+being gone rather than on how it went.
 
 Passkey is optional. It never creates a booking authorization, bypasses an
 eligibility rule, or assumes that a reservation was redeemed merely because it

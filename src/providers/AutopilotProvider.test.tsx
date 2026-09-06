@@ -91,11 +91,13 @@ function Probe() {
     setMaxActionsPerDay,
     refusals,
     passkeyStatus,
+    togglePaused,
   } = use(AutopilotContext);
   return (
     <div>
       <button onClick={() => setEnabled(!enabled)}>toggle</button>
       <button onClick={refillBudget}>refill</button>
+      <button onClick={() => togglePaused(BZ)}>pause BZ</button>
       <button onClick={() => setMaxActionsPerDay(20)}>raise budget</button>
       <span data-testid="mode">{status.mode}</span>
       <span data-testid="targets">{targets.length}</span>
@@ -2182,5 +2184,57 @@ describe('AutopilotProvider passkey', () => {
     // The passkey was redeemed *today*. Nothing about tomorrow is established,
     // so the Tier 1 hold has to stand again.
     expect(screen.getByTestId('passkey')).not.toHaveTextContent('unlocked');
+  });
+});
+
+// The poller's own cancellation only fires on enable/disable and unmount --
+// the polling effect depends on `enabled` alone so a park or date change does
+// not tear the loop down. A tick already in flight therefore keeps the park
+// and date it captured, and the only thing standing between that and a
+// booking against a day the user has moved off is the tick's own staleness
+// test.
+describe('AutopilotProvider acting on a plan that changed mid-tick', () => {
+  beforeEach(() => setTime('09:00'));
+
+  it('does not book after the booking date moves under it', async () => {
+    saveWatchList([{ experienceId: BZ, autoBook: true }]);
+    let release!: () => void;
+    const held = new Promise<void>(resolve => (release = resolve));
+    const { book, offer, setBookingDate } = setupBooking({
+      // Eligibility is a round trip, and the decision to book is made after
+      // it returns. Hold it open and change the day while it is outstanding.
+      guestsResult: held.then(() => party) as unknown,
+    });
+    await enable();
+    await act(async () => {
+      setBookingDate(TOMORROW);
+      release();
+      await Promise.resolve();
+    });
+    // Deliberately no further ticks: a *new* tick booking for the new date is
+    // correct, and would mask the thing under test. This asserts only that
+    // the tick which started on the old date did not go on to act.
+    expect(offer).not.toHaveBeenCalled();
+    expect(book).not.toHaveBeenCalled();
+  });
+
+  it('does not book an attraction paused while eligibility was in flight', async () => {
+    saveWatchList([{ experienceId: BZ, autoBook: true }]);
+    let release!: () => void;
+    const held = new Promise<void>(resolve => (release = resolve));
+    const { book, offer } = setupBooking({
+      guestsResult: held.then(() => party) as unknown,
+    });
+    await enable();
+    await act(async () => {
+      // Through the context, not storage: `saveWatchList` writes localStorage
+      // and the provider's list is state, so the running tick would never see
+      // it and the test would pass for the wrong reason.
+      screen.getByText('pause BZ').click();
+      release();
+      await Promise.resolve();
+    });
+    expect(offer).not.toHaveBeenCalled();
+    expect(book).not.toHaveBeenCalled();
   });
 });

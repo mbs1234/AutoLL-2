@@ -227,6 +227,10 @@ export default function AutopilotProvider({
   const passkeyUnlockedForRef = useRef<string | undefined>(undefined);
   const bookingDateRef = useRef(bookingDate);
   bookingDateRef.current = bookingDate;
+  // Read at tick time for the same reason as the date: `onTick` closes over
+  // `park`, so a tick already running still holds the park it started in.
+  const parkIdRef = useRef(park.id);
+  parkIdRef.current = park.id;
   // Read at tick time: setState from a plans poll has not re-rendered yet
   // when the booking loop runs immediately afterwards.
   const plansRef = useRef(plans);
@@ -458,6 +462,22 @@ export default function AutopilotProvider({
       const activeTargets = targetsRef.current.filter(target =>
         targetApplies(target, park.id, date)
       );
+
+      /**
+       * Whether this tick is still acting on the plan it started from.
+       *
+       * `cancelled` is the poller's own signal and covers only turning
+       * autopilot off and unmounting -- the polling effect depends on
+       * `enabled` alone, deliberately, so that a park or date change does not
+       * tear the loop down and fire an extra immediate poll. The cost of that
+       * choice is that a tick already in flight keeps the park and date it
+       * captured, and would happily spend an entitlement against a day the
+       * user has since moved off. So the tick asks about all three.
+       */
+      const stale = () =>
+        cancelled() ||
+        bookingDateRef.current !== date ||
+        parkIdRef.current !== park.id;
 
       // Let this reject: the poller needs the failure to drive backoff.
       const experiences = await pollExperiences();
@@ -760,16 +780,33 @@ export default function AutopilotProvider({
           continue;
         }
 
-        // Checked here, immediately before the three-request booking path and
-        // after every guard has passed. Turning autopilot off, or changing the
-        // park or date, stops the *loop*; without this the tick already running
-        // would carry on and book anyway, which is the one thing a stop button
-        // has to mean.
-        if (cancelled()) break;
+        // Immediately before the three-request booking path, after every
+        // other guard has passed. Without this the tick already running would
+        // carry on and book after the user had stopped it, which is the one
+        // thing a stop button cannot do.
+        if (stale()) break;
 
         let outcome: AutoBookOutcome | ModifyOutcome | SwapOutcome;
         try {
           const guests = await guestsFor(experience.id, date);
+
+          // Asked again, because eligibility is a round trip and the check
+          // above is only as fresh as the moment it ran. Stopping autopilot,
+          // or changing the day, while that request is outstanding used to
+          // land in the offer and booking calls regardless.
+          if (stale()) break;
+          // Same for the target itself: pausing or unstarring an attraction
+          // mid-request should not be followed by booking it.
+          if (
+            !targetsRef.current.some(
+              t =>
+                t.experienceId === experience.id &&
+                targetApplies(t, park.id, date) &&
+                !t.paused
+            )
+          ) {
+            continue;
+          }
           // A Lightning Lane for part of the group is often worse than none: it
           // splits the party and spends the slot. Opt-in, since booking by hand
           // in bg1 or Disney's app books for whoever is eligible.
@@ -1008,6 +1045,13 @@ export default function AutopilotProvider({
       // strategy whose point is to redeem early, and demanding both left it
       // stuck on "waiting" for the rest of the day.
       //
+      // What it cannot tell you is *how* the pass was spent. `experienced`
+      // is true for a redeemed pass and equally for one whose window lapsed
+      // unused, because Disney counts both as ridden and the tracker follows
+      // Disney. That is the right input for this decision -- the tier limit
+      // turns on the entitlement being gone, not on how -- but it is why
+      // nothing here claims a tap-in was observed.
+      //
       // The redemption half is what makes the eligibility half mean anything.
       // `TIER_LIMIT_REACHED` is only reported to a party that already holds a
       // Tier 1, so on a party holding none -- which is the state the hold exists
@@ -1041,7 +1085,7 @@ export default function AutopilotProvider({
           setPasskeyStatus('unlocked');
           fireAlert({
             title: 'Tier 1 hold unlocked',
-            body: 'Disney confirmed your selected party can book Tier 1 targets.',
+            body: 'Your passkey is spent and Disney is no longer holding the Tier 1 limit for your party.',
             tag: `autoll2-passkey-${date}`,
           });
         } else {
