@@ -124,7 +124,7 @@ export default function DaySummary() {
         </p>
       )}
 
-      <DayTimeline lanes={lanes} targets={targetsToday} />
+      <DayTimeline lanes={lanes} targets={targetsToday} date={bookingDate} />
     </Screen>
   );
 }
