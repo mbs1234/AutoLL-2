@@ -159,6 +159,13 @@ CI gates on `test:ci` so it stays a real signal; the full suite also runs, as
 `continue-on-error`, to keep the pre-existing count visible. The exclusion list
 lives in `jest.ci.config.js` — delete an entry if that suite gets repaired.
 
+**Seeing a screen.** The bundle only runs injected into a logged-in Disney
+page, so until 2026-09-07 a screen could be seen in a park or in a jest render
+and nowhere else. `npm run harness` now serves the real screens over fake
+clients (`harness/`, `vite.harness.config.mts`) with a scenario picker; see the
+README. The fakes never send a request, and the harness's own Vite config is
+what keeps it out of the bundle the bookmarklet loads.
+
 **What gates a publish.** `deploy.yml` runs `npm run typecheck` and
 `npm run test:ci` in its own build job, before the bundle is built, and its
 `deploy` job is `needs: build` — so a failure there skips the publish and Pages

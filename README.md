@@ -116,7 +116,10 @@ npm run checkall      # tests, lint, and typecheck
 npm run test:ci       # CI test suite
 npm run build         # production bundle
 npm start             # development server
+npm run harness       # the screens against fake data, no Disney session
 ```
+
+The harness (`harness/`, `vite.harness.config.mts`) serves the real screens over fake clients at <http://localhost:5174>, with a scenario picker for the states worth seeing: the engine running against a fake tipboard, bursting at a drop, stopped after errors, the budget spent, Disney refusing requests, dry run, a future date, a Plan Check full of blockers, and each way a Time Search can end. It is a separate Vite config, so nothing in it can reach the production bundle.
 
 As in AutoLL, `deploy.yml` runs typecheck and tests before it builds, and the deploy job depends on that — a failure serves the previous bundle rather than a broken one. `vite build` does not typecheck, which is why that is not redundant.
 

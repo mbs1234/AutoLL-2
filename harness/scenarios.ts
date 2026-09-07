@@ -1,0 +1,337 @@
+import {
+  DEFAULT_SETTINGS,
+  saveBudget,
+  saveSettings,
+} from '@/autopilot/storage';
+import { PollerStatus } from '@/autopilot/usePoller';
+import { WatchTarget, saveWatchList } from '@/autopilot/watchlist';
+import { HOME_TAB_KEY } from '@/components/ll/screens/Home';
+import { AutopilotState, BookingLogEntry } from '@/contexts/AutopilotContext';
+import { modifyDate, parkDate } from '@/datetime';
+import { PARTY_IDS_KEY } from '@/hooks/useSavedParty';
+import kvdb from '@/kvdb';
+import { BOOKING_DATE_KEY } from '@/providers/BookingDateProvider';
+import { PARK_KEY } from '@/providers/ParkProvider';
+
+import {
+  DEFAULT_SCRIPT,
+  IDS,
+  Script,
+  hs,
+  inMinutes,
+  mk,
+  wdw,
+} from './fakes/world';
+import { ScreenName } from './screens';
+
+export interface Scenario {
+  id: string;
+  title: string;
+  /** What to look at, and what to do. */
+  blurb: string;
+  script: Script;
+  /** Storage to seed after the reset, before the app mounts. */
+  seed?: () => void;
+  /**
+   * A fixed Autopilot state laid over the real provider's, for the states a
+   * fake tipboard cannot produce on cue: bursting at a drop, stopped, spent.
+   * The controls on such a screen act on the real provider underneath, so
+   * they will not visibly change what is shown.
+   */
+  autopilot?: Partial<AutopilotState>;
+  /** A screen to open once plans have loaded. */
+  screen?: ScreenName;
+}
+
+const nameOf = (id: string) => wdw.experience(id).name;
+
+function target(
+  id: string,
+  extra: Partial<WatchTarget> = {},
+  date = parkDate()
+): WatchTarget {
+  return { experienceId: id, name: nameOf(id), parkId: mk.id, date, ...extra };
+}
+
+/** A day's plan: one to book, one to move, one held back, one for another park. */
+function dayPlan(date = parkDate()): WatchTarget[] {
+  return [
+    target(
+      IDS.spaceMountain,
+      {
+        autoBook: true,
+        rank: 1,
+        after: inMinutes(-30),
+        before: inMinutes(240),
+      },
+      date
+    ),
+    target(IDS.hauntedMansion, { autoModify: true, rank: 2 }, date),
+    target(IDS.jungleCruise, { autoBook: true, paused: true }, date),
+    { ...target(IDS.slinkyDog, { autoBook: true }, date), parkId: hs.id },
+  ];
+}
+
+/** Magic Kingdom, the LL tab, and a party of three, for every scenario. */
+function seedCommon() {
+  kvdb.setDaily(PARK_KEY, mk.id);
+  kvdb.set(HOME_TAB_KEY, 'LL');
+  kvdb.set(PARTY_IDS_KEY, ['mickey', 'minnie', 'pluto']);
+}
+
+const armed = dayPlan();
+
+const bursting: PollerStatus = {
+  mode: 'burst',
+  consecutiveFailures: 0,
+  polls: 57,
+  target: inMinutes(2),
+  secondsToTarget: 95,
+  lastCycleMs: 412,
+  averageCycleMs: 498,
+};
+
+const log: BookingLogEntry[] = [
+  {
+    name: nameOf(IDS.hauntedMansion),
+    at: inMinutes(-12),
+    status: 'modified',
+    fromTime: inMinutes(60),
+    returnTime: inMinutes(20),
+    reason: 'forty minutes sooner, inside the window',
+  },
+  {
+    name: nameOf(IDS.spaceMountain),
+    at: inMinutes(-40),
+    status: 'failed',
+    detail: 'Network request failed (403 offer)',
+  },
+];
+
+/** The static picture of a busy morning. */
+const running: Partial<AutopilotState> = {
+  enabled: true,
+  status: bursting,
+  targets: armed,
+  targetsHere: armed.filter(t => t.parkId === mk.id),
+  isWatched: id => armed.some(t => t.experienceId === id),
+  bookingLog: log,
+  bookedCount: 1,
+  bookingsRemaining: 2,
+  actionBudget: 3,
+  maxActionsPerDay: 3,
+  notifications: 'granted',
+  lastHit: {
+    experienceId: IDS.spaceMountain,
+    name: nameOf(IDS.spaceMountain),
+    returnTime: inMinutes(35),
+  },
+  skipCounts: { 'offer-outside-window': 3, 'tier-hold': 1, 'partial-party': 2 },
+};
+
+const idle: PollerStatus = {
+  ...bursting,
+  mode: 'idle',
+  target: undefined,
+  secondsToTarget: undefined,
+};
+
+export const SCENARIOS: Scenario[] = [
+  {
+    id: 'off',
+    title: 'Off, nothing watched',
+    blurb:
+      'The tipboard, two held Lightning Lanes and lunch. Autopilot is off with an empty list. The real engine runs against the fakes.',
+    script: DEFAULT_SCRIPT,
+    seed: seedCommon,
+  },
+  {
+    id: 'live',
+    title: 'Live engine',
+    blurb:
+      'Three targets saved. Turn Autopilot on: Space Mountain comes back into stock after three checks and gets booked, and Haunted Mansion, held an hour out, has a time forty minutes sooner on offer, so it moves. The idle cadence is 45 s, so give it a minute.',
+    script: { ...DEFAULT_SCRIPT, restockAfterPolls: 3 },
+    seed: () => {
+      seedCommon();
+      saveWatchList(dayPlan());
+    },
+    screen: 'autopilot',
+  },
+  {
+    id: 'running',
+    title: 'Bursting at a drop (static)',
+    blurb:
+      'A fixed state: checking rapidly, one move made, one failure, skips counted, a find. Toggles act on the hidden real provider, not on what is shown.',
+    script: DEFAULT_SCRIPT,
+    seed: seedCommon,
+    autopilot: running,
+    screen: 'autopilot',
+  },
+  {
+    id: 'stopped',
+    title: 'Stopped after errors (static)',
+    blurb: 'The poller gave up after five failed checks.',
+    script: DEFAULT_SCRIPT,
+    seed: seedCommon,
+    autopilot: {
+      ...running,
+      status: {
+        mode: 'stopped',
+        consecutiveFailures: 5,
+        polls: 12,
+        lastError: 'Network request failed (no response experiences)',
+      },
+    },
+    screen: 'autopilot',
+  },
+  {
+    id: 'budget-gone',
+    title: 'Budget spent (static)',
+    blurb: "Watching, with all three of the day's actions used.",
+    script: DEFAULT_SCRIPT,
+    seed: seedCommon,
+    autopilot: {
+      ...running,
+      status: idle,
+      bookingsRemaining: 0,
+      bookedCount: 3,
+    },
+    screen: 'autopilot',
+  },
+  {
+    id: 'refused',
+    title: 'Disney refusing requests (static)',
+    blurb:
+      'Eligibility and offer calls refused for minutes; watching continues.',
+    script: DEFAULT_SCRIPT,
+    seed: seedCommon,
+    autopilot: {
+      ...running,
+      status: idle,
+      refusals: {
+        eligibility: { count: 6, since: inMinutes(-3) },
+        offer: { count: 4, since: inMinutes(-2) },
+      },
+    },
+    screen: 'autopilot',
+  },
+  {
+    id: 'dry-run',
+    title: 'Dry run',
+    blurb:
+      'Rehearsal on with three targets saved; the real engine. Turn it on and the log says what it would have done.',
+    script: { ...DEFAULT_SCRIPT, restockAfterPolls: 2 },
+    seed: () => {
+      seedCommon();
+      saveWatchList(dayPlan());
+      saveSettings({ ...DEFAULT_SETTINGS, dryRun: true });
+    },
+    screen: 'autopilot',
+  },
+  {
+    id: 'unknown-id',
+    title: 'An attraction the build does not know',
+    blurb: 'The tipboard lists an id the data file has never heard of.',
+    script: { ...DEFAULT_SCRIPT, unknownId: true },
+    seed: seedCommon,
+    screen: 'autopilot',
+  },
+  {
+    id: 'pretrip',
+    title: 'A future date',
+    blurb:
+      "The booking date is five days out, with a plan saved for it. What Today's pre-trip mode will grow from.",
+    script: DEFAULT_SCRIPT,
+    seed: () => {
+      seedCommon();
+      const date = modifyDate(parkDate(), 5);
+      kvdb.setDaily(BOOKING_DATE_KEY, date);
+      saveWatchList(dayPlan(date));
+    },
+    screen: 'autopilot',
+  },
+  {
+    id: 'plancheck',
+    title: 'Plan check with blockers',
+    blurb:
+      "An impossible window, a target that is not on the tipboard, a window swallowed by lunch's protected time, and a spent budget.",
+    script: DEFAULT_SCRIPT,
+    seed: () => {
+      seedCommon();
+      saveWatchList([
+        target(IDS.spaceMountain, {
+          autoBook: true,
+          after: inMinutes(120),
+          before: inMinutes(60),
+        }),
+        {
+          experienceId: IDS.unknown,
+          name: 'Retired Ride',
+          parkId: mk.id,
+          date: parkDate(),
+          autoBook: true,
+        },
+        target(IDS.hauntedMansion, {
+          autoBook: true,
+          after: inMinutes(50),
+          before: inMinutes(120),
+        }),
+      ]);
+      saveSettings({ ...DEFAULT_SETTINGS, maxActionsPerDay: 3 });
+      saveBudget({ spent: 3, granted: 0 });
+    },
+    screen: 'plancheck',
+  },
+  {
+    id: 'daysummary',
+    title: 'Day summary and timeline',
+    blurb:
+      'Two held passes and lunch beside three windows, one crossing lunch.',
+    script: DEFAULT_SCRIPT,
+    seed: () => {
+      seedCommon();
+      saveWatchList(dayPlan());
+    },
+    screen: 'daysummary',
+  },
+  {
+    id: 'search-earlier',
+    title: 'Time Search: an earlier time exists',
+    blurb:
+      'Find the earliest: the grid has a slot ninety minutes sooner than the held Haunted Mansion, so the search moves there on its own and Plans follows.',
+    script: { ...DEFAULT_SCRIPT, grid: 'earlier' },
+    seed: seedCommon,
+    screen: 'timesearch',
+  },
+  {
+    id: 'search-later',
+    title: 'Time Search: only later times',
+    blurb:
+      'Nothing earlier is on offer. Aim for a time an hour after what is held: the move is offered, not taken, until you take it.',
+    script: { ...DEFAULT_SCRIPT, grid: 'later' },
+    seed: seedCommon,
+    screen: 'timesearch',
+  },
+  {
+    id: 'search-unresolved',
+    title: 'Time Search: a move that did not come back',
+    blurb:
+      'The commit gets no response. The search must stop and send you to Plans rather than ask again.',
+    script: { ...DEFAULT_SCRIPT, grid: 'earlier', book: 'timeout' },
+    seed: seedCommon,
+    screen: 'timesearch',
+  },
+  {
+    id: 'search-unconfirmed',
+    title: 'Time Search: Plans never catches up',
+    blurb:
+      'The move succeeds but Plans keeps the old time. After ten settle cycles, about a minute, the search gives up and says so.',
+    script: { ...DEFAULT_SCRIPT, grid: 'earlier', plansFollow: false },
+    seed: seedCommon,
+    screen: 'timesearch',
+  },
+];
+
+export function findScenario(id: string | null): Scenario {
+  return SCENARIOS.find(s => s.id === id) ?? SCENARIOS[0]!;
+}

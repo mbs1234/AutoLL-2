@@ -2,6 +2,7 @@ import { use, useEffect, useState } from 'react';
 
 import { Experience } from '@/api/ll';
 import { MAX_ACTIONS_PER_DAY, MIN_ACTIONS_PER_DAY } from '@/autopilot/autobook';
+import { SKIP_TEXT } from '@/autopilot/events';
 import {
   DEMOTION_MIN_COVERED_DAYS,
   LEARNED_MIN_DAYS,
@@ -31,24 +32,6 @@ import DaySummary from './DaySummary';
 import PlanCheck from './PlanCheck';
 
 export const AUTOPILOT = 'Autopilot';
-
-/** Plain-language labels for skip reasons; unknown ones show as-is. */
-const SKIP_TEXT: Record<string, string> = {
-  'partial-party': 'not everyone in the party was eligible',
-  'tier-hold': 'held the Tier 1 slot for a better attraction',
-  'offer-outside-window': 'the offered time was outside the window',
-  'not-an-improvement': 'the time was not enough better to move for',
-  'offer-not-an-improvement': 'the offer came back not enough better',
-  'no-eligible-guests': 'nobody was eligible',
-  'not-full': 'a slot was free, so it booked instead of swapping',
-  'no-worse-reservation': 'nothing held was worth giving up',
-  'already-attempted': 'a booking for it was already held or in flight',
-  'budget-exhausted': "today's action budget was used up",
-  'outside-window': 'the advertised time was outside the window',
-  'overlaps-plans': 'it clashed with something already booked',
-  'not-modifiable': 'Disney marked the reservation unmodifiable',
-  'no-longer-wanted': 'you changed the plan while the request was in flight',
-};
 
 const MODE_TEXT: Record<PollerStatus['mode'], string> = {
   off: 'Off',
@@ -451,7 +434,7 @@ export default function Autopilot() {
 
       <p className="mt-1 text-xs text-gray-600">
         {avoidOverlaps
-          ? 'Autopilot will not take a return time that lands on top of a reservation you already hold &mdash; dining included. Booking by hand only warns about this; here there is nobody to warn.'
+          ? 'Autopilot will not take a return time that lands on top of a reservation you already hold — dining included. Booking by hand only warns about this; here there is nobody to warn.'
           : 'Autopilot will take any time that fits, even one overlapping an existing reservation.'}
       </p>
 

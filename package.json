@@ -42,15 +42,16 @@
   },
   "scripts": {
     "start": "vite",
+    "harness": "vite --config vite.harness.config.mts",
     "build": "vite build",
     "preview": "vite preview",
     "checkall": "npm run test:ci && npm run lint && npm run typecheck",
     "test": "TZ=UTC jest",
     "test:ci": "TZ=UTC jest --config jest.ci.config.js",
     "coverage": "jest --coverage --coverageDirectory=.coverage",
-    "lint": "eslint src",
-    "lint:fix": "eslint --fix src",
-    "format": "prettier --write src",
+    "lint": "eslint src harness",
+    "lint:fix": "eslint --fix src harness",
+    "format": "prettier --write src harness",
     "typecheck": "tsc --noEmit"
   },
   "browserslist": [

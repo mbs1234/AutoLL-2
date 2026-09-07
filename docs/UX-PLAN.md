@@ -4,8 +4,9 @@ Written 2026-09-07 against AutoLL-2 `d390133`. Inputs: the Codex UI/UX review
 of the same day (twelve suggestions), a line-by-line read of every screen it
 names, the 2026-09-07 session handoff, and the owner's decision of the same
 day to drop Disneyland and virtual-queue support from AutoLL-2. Phase 0a, the
-narrowing, landed the same day as `39b12b5`. Everything from Phase 0b on is
-the proposal for the owner to accept, trim, or reorder.
+narrowing, landed the same day as `39b12b5`; Phase 0b, the harness and the
+shared primitives, followed it. Everything from Phase 1 on is the proposal for
+the owner to accept, trim, or reorder.
 
 ## 0. Summary
 
@@ -286,6 +287,12 @@ can be mocked up in it before Phase 1 writes them.
 
 Size: about one session.
 
+**Landed 2026-09-07.** Fifteen scenarios, a 360 px and a 390 px frame, and
+Time Search running end to end against the fakes. Two things it showed at
+once: the Avoid-clashes explanation carried an `&mdash;` inside a string
+literal and rendered the entity (fixed with it), and the day timeline's three
+target columns truncate every name at 360 px, which Phase 2 inherits.
+
 ### Phase 1: the Autopilot restructure
 
 Split in two so the first half is useful on its own and low-risk.
@@ -339,7 +346,9 @@ Changes:
   inline (`refreshExperiences`). Inline actions only ever move in the safer or
   cheaper direction; widening a safeguard always goes through Configure.
 - `daytimeline.ts`: each `TimelineLane` carries its protected span from
-  `clashWindow()`. `DayTimeline` draws it as a lighter band behind the bar and
+  `clashWindow()`. The harness shows three target columns truncating every
+  name at 360 px; the bars need the name to survive, whether by wrapping,
+  by a legend, or by fewer columns. `DayTimeline` draws it as a lighter band behind the bar and
   takes `onTargetTap` and `onLaneTap` callbacks; bars become buttons with
   labels and an enlarged hit area. `Timeline.tsx` wires them to Configure and
   Booking details.

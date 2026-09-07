@@ -1,0 +1,5 @@
+@import '../src/bg1.css';
+
+/* Tailwind's automatic source detection is rooted at Vite's `root`, which is
+   this directory; the classes that matter are in the app. */
+@source '../src';
