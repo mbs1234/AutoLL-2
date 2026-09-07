@@ -1,16 +1,12 @@
 // ==UserScript==
 // @name         AutoLL-2 Autoloader
 // @namespace    https://joelface.github.io/bg1/
-// @version      0.3
+// @version      0.4
 // @description  Automatically loads the AutoLL-2 interface
 // @author       Joel Bruick
 // @match        https://joelface.github.io/bg1/start.html
 // @match        https://disneyworld.disney.go.com/vas/
 // @match        https://disneyworld.disney.go.com/*/vas/
-// @match        https://disneyland.disney.go.com/vas/
-// @match        https://disneyland.disney.go.com/*/vas/
-// @match        https://vqguest-svc-wdw.wdprapps.disney.com/application/v1/guest/getQueues
-// @match        https://vqguest-svc.wdprapps.disney.com/application/v1/guest/getQueues
 // @grant        none
 // ==/UserScript==
 'use strict';
