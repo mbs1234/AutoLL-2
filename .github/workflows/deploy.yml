@@ -113,21 +113,19 @@ jobs:
         if: ${{ format('{0}', inputs.skip_checks) != 'true' && !cancelled() }}
         run: npm run test:ci
 
-      # build:fork is `vite build` without upstream's `rm -f src/api/diu.ts`,
-      # which would delete our stub and break the DLR dynamic import.
       - name: Build app bundle
-        run: npm run build:fork
+        run: npm run build
 
       - name: Overlay static site from goofy
         run: |
           set -euo pipefail
           # Only files the mickey build does not emit. Build outputs
-          # (bg1.js, bg1.css, responder.html, wdw.js, dlr.js, chunks) are
+          # (bg1.js, bg1.css, responder.html, wdw.js, chunks) are
           # deliberately not copied, so freshly built code always wins.
           #
           # Also deliberately skipped:
-          #   diu.js         - obfuscated private module; our stub's chunk
-          #                    is emitted by the build instead
+          #   diu.js, dlr.js - upstream's Disneyland modules; this build has
+          #                    no Disneyland client and never loads them
           #   google*.html   - upstream's Google site-verification token
           for f in index.html index.css icon.png start.html news.html \
                    contact.html autoloader.user.js; do

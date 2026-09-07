@@ -10,7 +10,6 @@ const RES_EXPIRATION_MINUTES = 60;
 
 const RESORT_TO_ITINERARY_API_NAME = {
   WDW: 'wdw-itinerary-api',
-  DLR: 'dlr-itinerary-web-api',
 } as const;
 
 export interface Guest {
@@ -205,7 +204,6 @@ export function isDAS(booking: Booking): booking is DasBooking {
 
 export const FALLBACK_EXPS = {
   WDW: { id: '80010110', park: { id: '80007944' } },
-  DLR: { id: '353295', park: { id: '330339' } },
 } as const;
 
 const RES_TYPES = new Set(['ACTIVITY', 'DINING']);

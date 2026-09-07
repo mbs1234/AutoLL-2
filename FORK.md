@@ -12,7 +12,9 @@ Three separate gaps, worth understanding before touching the build:
    upstream's build script is `rm -f src/api/diu.ts && vite build` — it
    deletes the public shim so a private implementation resolves instead.
    A clean clone cannot resolve `import('../diu')` in `src/api/ll/dlr.ts`,
-   so `vite build` fails outright.
+   so `vite build` fails outright. Only the Disneyland client imported it.
+   This fork carried a stub returning `{}` until it dropped Disneyland
+   support altogether (see "Scope" below); now nothing here imports `diu`.
 
 2. **The build emits only the app bundle.** `rollupOptions.input` in
    `vite.config.mts` is exactly `src/bg1.tsx`, `src/bg1.css`,
@@ -31,7 +33,7 @@ Three separate gaps, worth understanding before touching the build:
 from `goofy`, rewrites upstream URLs, and deploys to Pages:
 
 ```
-main (source) ──► npm run build:fork ──► dist/
+main (source) ──► npm run build ──► dist/
 goofy  (static) ──► overlay index/start/news/contact/autoloader/icon/css
                     (never overwriting freshly built bg1.js, bg1.css,
                      responder.html or their chunks)
@@ -95,9 +97,7 @@ all work regardless, and are the bulk of what this repository adds.
 
 | Change | Files | Why |
 | --- | --- | --- |
-| Added `diu` stub returning `{}` | `src/api/diu.ts` | Makes the tree buildable. Only DLR imports it; WDW never does, so WDW booking is unaffected. DLR booking is already broken upstream (commit `3eaf2a4`). |
-| Disneyland booking turned off | `src/api/ll/dlr.ts` | `rules.book: false`. See below — it could not work, and saying so is better than offering it. |
-| Added `build:fork` script | `package.json` | `vite build` without upstream's `rm -f src/api/diu.ts`, which would delete the stub. |
+| Disneyland and virtual queues removed | `src/api/ll/dlr.ts`, `src/api/data/dlr.ts`, `src/api/diu.ts`, `src/api/vq.ts`, `src/components/vq/`, `App.tsx`, `ClientsContext.ts` | One resort, one product; see "Scope" below. With the Disneyland client gone nothing imports `diu`, so the stub, the obfuscator plugin and the `build:fork` split went with it. `npm run build` is plain `vite build`. |
 | Pages URL repointed | `App.tsx`, `LoginForm.tsx`, `screens/News.tsx` + both `.test.tsx` | `LoginForm.tsx` is the critical one — it is the OneID `responderPage`. Wrong value breaks login entirely. |
 | Usage ping disabled | `src/ping.ts`, `src/ping.test.ts` | No reason for a personal build to phone home. `PING_ENABLED = false`. |
 | `repository` field | `package.json` | Points at this fork. |
@@ -122,24 +122,27 @@ Deliberately left pointing at upstream infrastructure:
 - `github.com/joelface/bg1` source links in `start.html` / `index.html` —
   GPL-3.0 attribution, kept intentionally.
 
-Not copied from `goofy`: `diu.js` (obfuscated private module),
-`sensor-data.js` (bot-detection payload, referenced by no page),
-`google*.html` (upstream's site-verification token).
+Not copied from `goofy`: `diu.js` and `dlr.js` (upstream's Disneyland
+modules; nothing in this build loads them), `sensor-data.js` (bot-detection
+payload, referenced by no page), `google*.html` (upstream's site-verification
+token).
 
 ## Testing
 
 Upstream ships a **red test suite**. Verified against a clean worktree of
 upstream `mickey` (f1f022a): 8 suites / 11 tests fail there, and the same 8
-suites fail here. `src/api/ll.test.ts` additionally cannot load upstream at all
-— it imports the unpublished `./diu` — so its ~27 stale failures were invisible
-until this fork's stub made the file runnable. They are genuinely stale
-fixtures, e.g. `experiences()` reads `data.availableExperiences`, which the
-test's mocked response no longer provides.
+suites failed here. `src/api/ll.test.ts` additionally cannot load upstream at
+all — its Disneyland block imported the unpublished `./diu` — so its stale
+failures were invisible until this fork's stub made the file runnable. That
+block went with Disneyland support; the Walt Disney World half keeps its
+genuinely stale fixtures, e.g. `experiences()` reads
+`data.availableExperiences`, which the test's mocked response no longer
+provides.
 
 | Command | Scope | Status |
 | --- | --- | --- |
-| `npm run test:ci` | excludes upstream's broken suites | **green** (79 suites / 830 tests) |
-| `npm test` | everything | 4 suites / 33 tests fail (pre-existing), 904 total |
+| `npm run test:ci` | excludes upstream's broken suites | **green** (80 suites / 938 tests) |
+| `npm test` | everything | 4 suites / 27 tests fail (pre-existing), 1002 total |
 | `npm run lint` | | green |
 | `npm run typecheck` | | green |
 
@@ -176,39 +179,27 @@ Note two of the excluded suites (`Home.test.tsx`, `Home/MultiPassList.test.tsx`)
 cover screens this fork modified, so the Autopilot UI carries its own tests
 (`screens/Autopilot.test.tsx`) rather than relying on the stale ones.
 
-## Disneyland
+## Scope
 
-**Disneyland loads but cannot book, and the build now says so.**
+**Walt Disney World Lightning Lane only.** Disneyland and virtual-queue
+support were removed on 2026-09-07 (see the changes table). The trip this
+build exists for is at Walt Disney World, virtual queues were not in use, and
+Disneyland booking never worked here: `LLClientDLR.book()` built its request
+from `diu`, the one module upstream never publishes, so the stub this fork
+shipped could only ever produce a request Disney would refuse. Rather than
+carry a second resort that could watch but not book, and a second product
+nobody used, both are gone — the Disneyland client and data file, the `diu`
+stub, the virtual-queue client and its screens. The start page on `goofy`
+offers one destination, and a bookmarklet run on any other Disney page is
+sent back to it by `App.tsx`.
 
-The resort is chosen from the page origin, so opening the bookmarklet on
-`disneyland.disney.go.com` gets a working DLR session: sign-in, the park
-selector over both parks, the tipboard, Plans. What it cannot do is complete
-a booking, because `LLClientDLR.book()` builds its request body from `diu` —
-the one module upstream never publishes — and the stub this fork ships to
-make the tree build returns `{}`. Upstream's DLR booking has been broken
-since `3eaf2a4`.
+What stays: a boarding group already in the itinerary still renders in Plans
+and Booking details. That is the itinerary parser's `'BG'` type — read-only
+display of something joined in Disney's own app — not the virtual-queue
+client.
 
-`rules.book` sits on the base at `true`, restored for WDW's sake in
-`4638e90`, and DLR inherited it by omission. So Disneyland rendered a Book
-button, a Modify button and a fully armable Autopilot over a path that
-dead-ends — and the failure arrives *after* the drop, looking like Disney
-refusing the request rather than a module that was never there. `rules.book`
-is now `false` on the DLR client, which turns off both buttons
-(`MultiPassList.tsx`, `ModifyButton.tsx`).
-
-Two consequences worth knowing:
-
-- The Autopilot screen is still reachable on DLR and will still watch and
-  alert. That much works, and it is the half of the feature that does not
-  depend on `diu`.
-- `LLClientDLR.guests()` takes neither a date nor a park, so the Plan Check
-  screen's "eligible in general, at *park* on this date" is not true at
-  Disneyland: the endpoint has no date field at all, `parkId` is hardcoded to
-  Disneyland rather than California Adventure, and `experienceId` has no null
-  form so a park-less check is silently scoped to Big Thunder Mountain
-  Railroad. Left as is on purpose — a DLR user can no longer arm anything for
-  the preflight to be about, and threading a park through would make one
-  clause of that sentence true while leaving two false.
+AutoLL keeps both resorts and both products. Anything ported from here to
+AutoLL must leave this removal behind.
 
 ## Local toolchain
 
@@ -281,6 +272,9 @@ git fetch upstream
 git merge upstream/mickey
 ```
 
-Conflicts should be limited to the one-line URL changes in the table above.
-The URL is left hardcoded per-file rather than extracted to a shared
+Conflicts should be limited to the one-line URL changes in the table above,
+plus modify-versus-delete conflicts on the paths removed under "Scope"
+(`src/api/ll/dlr.ts`, `src/api/data/dlr.ts`, `src/api/diu.ts`,
+`src/api/vq.ts`, `src/components/vq/`) — resolve those by keeping the files
+deleted. The URL is left hardcoded per-file rather than extracted to a shared
 constant precisely so these conflicts stay trivial.

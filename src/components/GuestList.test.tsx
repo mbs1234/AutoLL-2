@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { fifi, guests, mickey, minnie, pluto } from '@/__fixtures__/vq';
+import { fifi, guests, mickey, minnie, pluto } from '@/__fixtures__/guests';
 import { click, render, screen, see, within } from '@/testing';
 
 import GuestList from './GuestList';

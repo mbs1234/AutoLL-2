@@ -21,12 +21,6 @@ import { LLClientWDW } from './ll/wdw';
  * so a regression test added there would never gate anything. This covers the
  * one property that has already broken Autopilot in the park.
  */
-const diu = {
-  disneyInternalUse01: '1',
-  disneyInternalUse02: '2',
-  disneyInternalUse03: '3',
-};
-jest.mock('./diu', () => ({ __esModule: true, default: () => diu }));
 jest.mock('@/ratelimit');
 
 function apiGuest<T extends { name: string }>({ name, ...rest }: T) {

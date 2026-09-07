@@ -77,7 +77,7 @@ export class InvalidId extends Error {
 }
 
 export class Resort {
-  readonly id: 'WDW' | 'DLR';
+  readonly id: 'WDW';
   readonly parks: Park[];
   protected parksById: { [id: string]: Park | undefined };
   protected expsById: { [id: string]: Experience | null | undefined };
@@ -156,6 +156,8 @@ export class Resort {
 }
 
 export async function loadResort(id: Resort['id']): Promise<Resort> {
-  const data: ResortData = await import(`./data/${id.toLowerCase()}.ts`);
+  // A literal path: with one resort there is nothing to choose, and the
+  // variable import this replaced made Rollup bundle every file in `./data/`.
+  const data: ResortData = await import('./data/wdw');
   return new Resort(id, data);
 }

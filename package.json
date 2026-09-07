@@ -38,13 +38,11 @@
     "tailwindcss": "^4.1.11",
     "ts-jest": "^29.4.1",
     "typescript": "^5.9.2",
-    "vite": "^7.1.0",
-    "vite-plugin-javascript-obfuscator": "^3.1.0"
+    "vite": "^7.1.0"
   },
   "scripts": {
     "start": "vite",
-    "build": "rm -f src/api/diu.ts && vite build",
-    "build:fork": "vite build",
+    "build": "vite build",
     "preview": "vite preview",
     "checkall": "npm run test:ci && npm run lint && npm run typecheck",
     "test": "TZ=UTC jest",

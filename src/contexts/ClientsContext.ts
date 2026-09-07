@@ -4,17 +4,14 @@ import { DasClient } from '@/api/das';
 import { ItineraryClient } from '@/api/itinerary';
 import { LiveDataClient } from '@/api/livedata';
 import { LLClient } from '@/api/ll';
-import { LLClientDLR } from '@/api/ll/dlr';
 import { LLClientWDW } from '@/api/ll/wdw';
 import { Resort } from '@/api/resort';
-import { VQClient } from '@/api/vq';
 
 export interface Clients {
   das: DasClient;
   itinerary: ItineraryClient;
   liveData: LiveDataClient;
   ll: LLClient;
-  vq: VQClient;
 }
 
 export default createContext<Clients>({
@@ -22,15 +19,13 @@ export default createContext<Clients>({
   itinerary: {} as ItineraryClient,
   liveData: {} as LiveDataClient,
   ll: {} as LLClient,
-  vq: {} as VQClient,
 });
 
 export function createClients(resort: Resort) {
   const das = new DasClient(resort);
   const liveData = new LiveDataClient(resort);
-  const vq = new VQClient(resort);
-  const ll = new (resort.id === 'WDW' ? LLClientWDW : LLClientDLR)(resort);
+  const ll = new LLClientWDW(resort);
   const itinerary = new ItineraryClient(resort);
   itinerary.onRefresh = bookings => ll.track(bookings);
-  return { das, itinerary, liveData, ll, vq };
+  return { das, itinerary, liveData, ll };
 }

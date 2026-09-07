@@ -22,6 +22,6 @@ export function renderResort(children: React.ReactNode) {
   );
 }
 
-const { das, itinerary, liveData, ll, vq } = clients;
-export { das, itinerary, liveData, ll, vq };
+const { das, itinerary, liveData, ll } = clients;
+export { das, itinerary, liveData, ll };
 export const [mk, ep, hs, ak] = wdw.parks as [Park, Park, Park, Park];

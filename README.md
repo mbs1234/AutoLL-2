@@ -1,12 +1,12 @@
 # AutoLL-2
 
-AutoLL-2 is the experimental sibling of **[AutoLL](https://github.com/mbs1234/AutoLL)** — an unofficial client for Lightning Lane Multi Pass and virtual queues at Walt Disney World, run as a bookmarklet or userscript from the phone you carry in the park.
+AutoLL-2 is the experimental sibling of **[AutoLL](https://github.com/mbs1234/AutoLL)** — an unofficial client for Lightning Lane Multi Pass at Walt Disney World, run as a bookmarklet or userscript from the phone you carry in the park.
 
-It does everything AutoLL v1.0 does, with the same Autopilot engine, the same NextLL search, the same safety limits and the same corrected attraction data. **This README covers only what is different.** For how any of the base features work — installing, the LL/Times/Plans tabs, arming actions, return-time windows, the action budget, dry run, NextLL — read [AutoLL's README](https://github.com/mbs1234/AutoLL#readme). Everything there applies here unchanged unless a section below says otherwise.
+It does everything AutoLL v1.0 does at Walt Disney World, with the same Autopilot engine, the same NextLL search, the same safety limits and the same corrected attraction data — and nothing else: Disneyland and virtual queues, which AutoLL still carries, are not here. **This README covers only what is different.** For how any of the base features work — installing, the LL/Times/Plans tabs, arming actions, return-time windows, the action budget, dry run, NextLL — read [AutoLL's README](https://github.com/mbs1234/AutoLL#readme). Everything there applies here unchanged unless a section below says otherwise.
 
 **Important:** AutoLL-2 is unofficial, experimental software, and the more experimental of the two builds. It is not affiliated with or endorsed by Disney, may stop working at any time, and is provided without warranty. Keep the official Disney app as the source of truth for your plans and reservations. If you want the build that is meant to be dependable on a trip, use AutoLL.
 
-**Walt Disney World only, for booking.** Opening it on `disneyland.disney.go.com` gives a working Disneyland session — sign-in, the park selector, the tipboard, Plans, and Autopilot's watching and alerting — but it cannot complete a booking there, because the module Disneyland's booking request is built from is one upstream has never published. The Book and Modify buttons are therefore switched off at Disneyland rather than offered and failing after a drop. See [FORK.md](FORK.md#disneyland).
+**Walt Disney World, Lightning Lane only.** AutoLL-2 runs on `disneyworld.disney.go.com/vas/` and nowhere else. Run from a Disneyland or virtual-queue page, it returns you to the start page, which offers that one destination. Disneyland booking never worked in this fork and virtual queues were not in use, so both were removed rather than carried; see [FORK.md](FORK.md#scope).
 
 ## Install
 
@@ -114,7 +114,7 @@ AutoLL-2 additionally implements **demotion** — removing a scheduled time cont
 npm ci
 npm run checkall      # tests, lint, and typecheck
 npm run test:ci       # CI test suite
-npm run build:fork    # production bundle
+npm run build         # production bundle
 npm start             # development server
 ```
 

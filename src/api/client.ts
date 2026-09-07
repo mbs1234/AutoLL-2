@@ -28,7 +28,6 @@ export abstract class ApiClient {
 
   protected static origins = {
     WDW: 'https://disneyworld.disney.go.com',
-    DLR: 'https://disneyland.disney.go.com',
   };
 
   static originToResortId(origin: string): Resort['id'] {

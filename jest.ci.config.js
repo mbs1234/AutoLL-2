@@ -4,11 +4,12 @@
  *
  * Upstream ships a red test suite at f1f022a. Verified by running the suite in
  * a clean worktree of upstream/mickey: 8 suites / 11 tests fail there, and the
- * same 8 suites fail on this fork. `src/api/ll.test.ts` additionally cannot
- * even load upstream, because it imports the unpublished `./diu` module -- so
- * its ~27 stale failures were invisible until this fork added a diu stub.
- * (Example: `experiences()` expects `data.availableExperiences`, which the
- * test's mocked response no longer provides.)
+ * same 8 suites fail on this fork. `src/api/ll.test.ts` additionally could
+ * not even load upstream, because its Disneyland block imported the
+ * unpublished `./diu` module; that block went with Disneyland support, and
+ * the ~27 stale failures in the Walt Disney World half remain. (Example:
+ * `experiences()` expects `data.availableExperiences`, which the test's
+ * mocked response no longer provides.)
  *
  * Gating CI on the full suite would make it permanently red and therefore
  * useless as a signal. Excluding these makes CI meaningful again: anything new

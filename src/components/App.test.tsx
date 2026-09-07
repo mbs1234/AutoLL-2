@@ -1,5 +1,4 @@
 import { AuthData, ReauthNeeded, authStore } from '@/api/auth';
-import { fetchJson } from '@/fetch';
 import { DISCLAIMER_ACCEPTED_KEY } from '@/hooks/useDisclaimer';
 import { NEWS_VERSION_KEY } from '@/hooks/useNews';
 import kvdb from '@/kvdb';
@@ -14,11 +13,6 @@ jest.mock('@/navigate');
 jest.mock('./ll/Merlock', () => {
   return function Merlock() {
     return <Screen title="LL">test</Screen>;
-  };
-});
-jest.mock('./vq/BGClient', () => {
-  return function BGClient() {
-    return <Screen title="Virtual Queues">test</Screen>;
   };
 });
 jest.mock('./LoginForm', () => {
@@ -90,13 +84,14 @@ describe('App', () => {
     see('Log In');
   });
 
-  it('loads DLR VQ component', async () => {
-    jest
-      .mocked(fetchJson)
-      .mockResolvedValue({ ok: true, status: 200, data: { queues: [] } });
-    self.origin = 'https://vqguest-svc.wdprapps.disney.com';
+  it('sends a Disneyland page to the start page, like any other', async () => {
+    self.origin = 'https://disneyland.disney.go.com';
     renderComponent();
-    await see.screen('Virtual Queues');
+    await waitFor(() => {
+      expect(navigate).toHaveBeenCalledWith(
+        'https://mbs1234.github.io/AutoLL-2/start.html'
+      );
+    });
   });
 
   it('redirects to start page if BG1 cannot be run from this origin', async () => {

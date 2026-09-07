@@ -4,7 +4,6 @@ import { ReauthNeeded, authStore } from '@/api/auth';
 import { InvalidOrigin } from '@/api/client';
 import { LLClient } from '@/api/ll';
 import { Resort, loadResort } from '@/api/resort';
-import { VQClient } from '@/api/vq';
 import ClientsContext, { createClients } from '@/contexts/ClientsContext';
 import ResortContext from '@/contexts/ResortContext';
 import { DateTime } from '@/datetime';
@@ -15,9 +14,11 @@ import onVisible from '@/onVisible';
 
 import LoginForm from './LoginForm';
 import Merlock from './ll/Merlock';
-import BGClient from './vq/BGClient';
 
 export const NEWS_VERSION = 0;
+
+/** Where anyone who ran the bookmarklet on a page it cannot use is sent. */
+const START_PAGE = 'https://mbs1234.github.io/AutoLL-2/start.html';
 
 function disableDoubleTapZoom() {
   document.body.addEventListener('click', () => null);
@@ -42,32 +43,27 @@ export default function App() {
     disableDoubleTapZoom();
     authStore.onUnauthorized = () => requireLogin(true);
     (async () => {
-      for (const [Client, Component] of [
-        [LLClient, Merlock],
-        [VQClient, BGClient],
-      ] as const) {
-        try {
-          const resort = await loadResort(Client.originToResortId(origin));
-          setResort(resort);
-          DateTime.setTimeZone(
-            {
-              WDW: 'America/New_York',
-              DLR: 'America/Los_Angeles',
-            }[resort.id]
-          );
-          setContent(
-            <ResortContext value={resort}>
-              <ClientsContext value={createClients(resort)}>
-                <Component />
-              </ClientsContext>
-            </ResortContext>
-          );
-          return;
-        } catch (error) {
-          if (!(error instanceof InvalidOrigin)) throw error;
-        }
+      // One resort and one product: Walt Disney World Lightning Lane. Any
+      // other Disney page the bookmarklet was run from -- Disneyland, a
+      // virtual-queue host -- goes back to the start page, which offers the
+      // one destination there is.
+      let resort: Resort;
+      try {
+        resort = await loadResort(LLClient.originToResortId(origin));
+      } catch (error) {
+        if (!(error instanceof InvalidOrigin)) throw error;
+        navigate(START_PAGE);
+        return;
       }
-      navigate('https://mbs1234.github.io/AutoLL-2/start.html');
+      setResort(resort);
+      DateTime.setTimeZone('America/New_York');
+      setContent(
+        <ResortContext value={resort}>
+          <ClientsContext value={createClients(resort)}>
+            <Merlock />
+          </ClientsContext>
+        </ResortContext>
+      );
     })();
   }, []);
 

@@ -1,15 +1,13 @@
 /**
- * Consistency checks over the resort data files.
+ * Consistency checks over the resort data file.
  *
- * Deliberately *not* in `src/api/data/`. `loadResort` dynamic-imports
- * `./data/${id}.ts` with a variable, so Rollup pulls every `.ts` in that
- * directory into the bundle -- a test file there breaks `vite build` on its
- * `node:fs` import.
+ * Kept beside `src/api/data/` rather than in it: that directory holds data
+ * only, and this file reads the data source as text through `node:fs`, which
+ * has no place in the bundle.
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import * as dlr from './data/dlr';
 import * as wdw from './data/wdw';
 import { ResortData } from './resort';
 
@@ -37,28 +35,30 @@ function sectionsByExperienceId(file: string): Map<string, string> {
   return sections;
 }
 
-describe.each([
-  ['wdw.ts', wdw as unknown as ResortData],
-  ['dlr.ts', dlr as unknown as ResortData],
-])('%s', (file, data) => {
-  const sections = sectionsByExperienceId(file);
+describe.each([['wdw.ts', wdw as unknown as ResortData]])(
+  '%s',
+  (file, data) => {
+    const sections = sectionsByExperienceId(file);
 
-  it('declares every experience under a park section', () => {
-    const ids = Object.entries(data.experiences)
-      .filter(([, exp]) => !!exp)
-      .map(([id]) => id);
-    expect([...sections.keys()].sort()).toEqual(ids.sort());
-  });
-
-  it('puts every experience in a land belonging to its section park', () => {
-    const wrong = [...sections].flatMap(([id, park]) => {
-      const exp = data.experiences[id];
-      if (!exp || exp.land.park.name === park) return [];
-      return [`${id} ${exp.name}: ${park} section, ${exp.land.park.name} land`];
+    it('declares every experience under a park section', () => {
+      const ids = Object.entries(data.experiences)
+        .filter(([, exp]) => !!exp)
+        .map(([id]) => id);
+      expect([...sections.keys()].sort()).toEqual(ids.sort());
     });
-    expect(wrong).toEqual([]);
-  });
-});
+
+    it('puts every experience in a land belonging to its section park', () => {
+      const wrong = [...sections].flatMap(([id, park]) => {
+        const exp = data.experiences[id];
+        if (!exp || exp.land.park.name === park) return [];
+        return [
+          `${id} ${exp.name}: ${park} section, ${exp.land.park.name} land`,
+        ];
+      });
+      expect(wrong).toEqual([]);
+    });
+  }
+);
 
 describe('wdw.ts', () => {
   // Disney re-issues a facility id when an attraction is re-themed, and an id

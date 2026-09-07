@@ -12,7 +12,6 @@ import {
   mk,
   modOffer,
   offer,
-  omitOrderDetails,
   pluto,
   sdd,
   sm,
@@ -32,15 +31,8 @@ import {
   Offer,
   OfferError,
 } from './ll';
-import { LLClientDLR } from './ll/dlr';
 import { LLClientWDW } from './ll/wdw';
 
-const diu = {
-  disneyInternalUse01: '1',
-  disneyInternalUse02: '2',
-  disneyInternalUse03: '3',
-};
-jest.mock('./diu', () => ({ __esModule: true, default: () => diu }));
 jest.mock('@/ratelimit');
 const onUnauthorized = jest.fn();
 
@@ -697,193 +689,6 @@ describe('LLClientWDW', () => {
     it('updates LL tracker', async () => {
       client.track(bookings);
       expect(tracker.update).toHaveBeenCalledTimes(1);
-    });
-  });
-});
-
-describe('LLClientDLR', () => {
-  const guestsRes = response({
-    guests: guests.map(apiGuest),
-    ineligibleGuests: ineligibleGuests.map(apiGuest),
-  });
-  let client: LLClientDLR;
-
-  beforeEach(() => {
-    client = new LLClientDLR(wdw, tracker);
-    client.onUnauthorized = onUnauthorized;
-  });
-
-  describe('setPartyIds()', () => {
-    it('sets booking party', async () => {
-      client.setPartyIds([mickey.id, pluto.id]);
-      respond(guestsRes);
-      const { eligible, ineligible } = await client.guests();
-      expect(eligible.map(g => g.id)).toEqual([mickey.id, pluto.id]);
-      expect(ineligible.map(g => g.id)).toEqual([donald.id, minnie.id]);
-      ineligible.forEach(g => expect(g.ineligibleReason).toBe('NOT_IN_PARTY'));
-      client.setPartyIds([]);
-    });
-  });
-
-  describe('guests()', () => {
-    const guestsUrl = '/ea-vas/api/v1/guests';
-
-    it('returns eligible & ineligible guests for experience', async () => {
-      respond(guestsRes);
-      expect(await client.guests(hm)).toEqual({
-        eligible: [mickey, minnie, pluto],
-        ineligible: ineligibleGuests,
-      });
-      expectFetch(
-        guestsUrl,
-        {
-          params: {
-            productType: 'FLEX',
-            experienceId: hm.id,
-            parkId: mk.id,
-          },
-        },
-        true
-      );
-    });
-  });
-
-  describe('offer()', () => {
-    const dlrOffer = { ...offer, offerSetId: undefined, parkHours: undefined };
-    const offerData = {
-      id: offer.id,
-      date: offer.start.date,
-      startTime: offer.start.time,
-      endTime: offer.end.time,
-      status: 'ACTIVE',
-    };
-
-    it('obtains Lightning Lane offer', async () => {
-      respond(
-        response(
-          {
-            offer: offerData,
-            eligibleGuests: offer.guests.eligible.map(apiGuest),
-            ineligibleGuests: [],
-          },
-          201
-        )
-      );
-      const newOffer = await client.offer(hm, offer.guests.eligible);
-      expect(newOffer).toEqual(dlrOffer);
-      expect(client.lastOffer).toBe(newOffer);
-      expectFetch('/ea-vas/api/v2/products/flex/offers', {
-        data: {
-          guestIds: offer.guests.eligible.map(g => g.id),
-          ineligibleGuests: [],
-          primaryGuestId: mickey.id,
-          parkId: mk.id,
-          experienceId: hm.id,
-          selectedTime: hm.flex.nextAvailableTime,
-        },
-      });
-    });
-
-    it('reports changed return time', async () => {
-      respond(
-        response(
-          {
-            offer: {
-              ...offerData,
-              startTime: ParkTime.from('11:15'),
-              endTime: ParkTime.from('12:15'),
-            },
-            eligibleGuests: offer.guests.eligible.map(apiGuest),
-            ineligibleGuests: [],
-          },
-          201
-        )
-      );
-      expect(await client.offer(hm, offer.guests.eligible)).toEqual({
-        ...dlrOffer,
-        start: new DateTime(TODAY, ParkTime.from('11:15')),
-        end: new DateTime(TODAY, ParkTime.from('12:15')),
-        changed: true,
-      });
-    });
-
-    it('throws OfferError if DELETED offer received', async () => {
-      const ineligible = booking.guests.map(g => ({
-        ...g,
-        ineligibleReason: 'TOO_EARLY_FOR_PARK_HOPPING' as const,
-      }));
-      respond(
-        response({
-          offer: { ...offerData, status: 'DELETED' },
-          eligibleGuests: [],
-          ineligibleGuests: ineligible.map(apiGuest),
-        })
-      );
-      await expect(client.offer(hm, booking.guests)).rejects.toThrow(
-        new OfferError({ eligible: [], ineligible })
-      );
-    });
-
-    it('throws ModifyNotAllowed when not allowed to modify', async () => {
-      await expect(
-        client.offer(hm, guests, {
-          booking: { ...booking, modifiable: false },
-        })
-      ).rejects.toThrow(ModifyNotAllowed);
-    });
-  });
-
-  describe('times()', () => {
-    it('returns an empty array', async () => {
-      expect(await client.times()).toEqual([]);
-    });
-  });
-
-  describe('changeOfferTime()', () => {
-    it('is a no-op', async () => {
-      expect(await client.changeOfferTime(offer)).toBe(offer);
-    });
-  });
-
-  describe('book()', () => {
-    it('books Lightning Lanes', async () => {
-      respond(
-        response(
-          {
-            booking: {
-              id: 'NEW_BOOKING',
-              entitlements: booking.guests.map(g => ({
-                id: g.entitlementId,
-                guestId: g.id,
-              })),
-              startDateTime: `${booking.start.date}T${booking.start.time}`,
-              endDateTime: `${booking.end.date}T${booking.end.time}`,
-              singleExperienceDetails: {
-                experienceId: booking.facilityId,
-                parkId: booking.park.id,
-              },
-            },
-          },
-          201
-        )
-      );
-      expect(
-        await client.book({
-          ...offer,
-          guests: {
-            eligible: offer.guests.eligible.map(omitOrderDetails),
-            ineligible: [],
-          },
-        })
-      ).toEqual({ ...booking, experience: offer.experience });
-      expectFetch('/ea-vas/api/v2/products/flex/bookings', {
-        data: { offerId: offer.id, ...diu },
-      });
-    });
-
-    it('throws RequestError on failure', async () => {
-      respond(response({}, 410));
-      await expect(client.book(offer)).rejects.toThrow(RequestError);
     });
   });
 });
