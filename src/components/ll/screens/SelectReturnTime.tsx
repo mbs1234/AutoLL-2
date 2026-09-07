@@ -2,15 +2,12 @@ import { use, useCallback, useLayoutEffect, useState } from 'react';
 
 import { HourlyTimes, Offer } from '@/api/ll';
 import { Overlap } from '@/api/ll/wdw';
-import { savePendingSearch } from '@/autopilot/nextll';
 import Button from '@/components/Button';
 import LandLine from '@/components/LandLine';
 import Screen from '@/components/Screen';
 import { Time } from '@/components/Time';
-import BookingDateContext from '@/contexts/BookingDateContext';
 import ClientsContext from '@/contexts/ClientsContext';
 import NavContext from '@/contexts/NavContext';
-import ParkContext from '@/contexts/ParkContext';
 import RebookingContext from '@/contexts/RebookingContext';
 import ThemeContext from '@/contexts/ThemeContext';
 import { DateTime, ParkTime, parkDate } from '@/datetime';
@@ -23,8 +20,8 @@ import ReturnTime from '../ReturnTime';
 import YourDayButton from '../YourDayButton';
 import Home from './Home';
 import Legend from './Home/Legend';
-import { NEXTLL } from './Home/NextLL';
 import RefreshButton from './RefreshButton';
+import TimeSearch from './TimeSearch';
 
 export const FULL_AVAILABILITY_KEY = 'autoll2.ll.fullAvailability';
 
@@ -35,10 +32,8 @@ export default function SelectReturnTime<B extends Offer['booking']>({
   offer: Offer<B>;
   onOfferChange: (offer: Offer<B>) => void;
 }) {
-  const { goBack } = use(NavContext);
+  const { goBack, goTo } = use(NavContext);
   const { ll } = use(ClientsContext);
-  const { park } = use(ParkContext);
-  const { bookingDate } = use(BookingDateContext);
   const rebooking = use(RebookingContext);
   const { loadData, loaderElem } = useDataLoader();
   const [times, setTimes] = useState<HourlyTimes>();
@@ -49,24 +44,14 @@ export default function SelectReturnTime<B extends Offer['booking']>({
   const { booking } = offer;
   const bookingTimeChange = booking && !rebooking.current;
 
-  // Only for the change-arrival-time flow, and only when the search would
-  // actually be about this reservation. NextLL reads the park and date from
-  // the app's own contexts, so a booking in another park or on another day
-  // would arm a search that could never match -- and this screen must not
-  // change either, because both providers sit above the running Autopilot.
-  const searchable =
-    !!booking &&
-    !rebooking.current &&
-    booking.park.id === park.id &&
-    parkDate(booking.start) === bookingDate;
-
-  function searchForBetter() {
+  async function searchForBetter() {
     if (!booking) return;
-    // Seeded rather than started: NextLL shows its resume card, so the search
-    // is armed by a deliberate second tap on a screen that says what it will
-    // do -- not by leaving this one.
-    savePendingSearch({ experienceId: booking.facilityId });
-    goBack({ screen: Home, props: { tabName: NEXTLL } });
+    // Popped before the search is pushed, on purpose. `changeOfferTime`
+    // replaces both the offer id and the offer-set id, so this screen left
+    // mounted underneath would be holding ids the search had superseded --
+    // and `NavProvider` keeps screens below the current position mounted.
+    await goBack();
+    goTo(<TimeSearch booking={booking} />);
   }
 
   const refreshTimes = useCallback(() => {
@@ -113,11 +98,11 @@ export default function SelectReturnTime<B extends Offer['booking']>({
     >
       <h2>{offer.experience.name}</h2>
       <LandLine land={offer.experience.land} />
-      {searchable && (
+      {booking && !rebooking.current && (
         <div className="mt-2 rounded-sm bg-gray-100 p-2 text-sm">
           <p>
-            Nothing here yet? NextLL can keep checking for you and take a better
-            time the moment one appears.
+            Nothing here yet? A search can keep checking every time on offer and
+            take a better one the moment it appears.
           </p>
           <Button type="small" className="mt-2" onClick={searchForBetter}>
             Search for a better time
