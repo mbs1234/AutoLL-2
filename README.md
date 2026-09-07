@@ -39,9 +39,9 @@ It checks configuration only — targets that are not on the loaded tipboard, ac
 
 What it deliberately does not do is ask Disney anything. Every fact it reasons over is already on the screen. That is the point: eligibility, inventory and the offer's real return time are re-read immediately before every action anyway, so a preflight that made one more request would look more authoritative without being more accurate.
 
-One optional button, **Check current party**, makes a single eligibility-only request. It cannot create an offer or spend an entitlement.
+One optional button, **Check current party**, makes a single eligibility-only request, scoped to the park and date on screen. It cannot create an offer or spend an entitlement.
 
-> **Known limits.** Plan check re-derives some rules rather than calling the engine's own, and it has drifted from them: it does not know about **Dry run**, so it can report *Ready* for a plan that will book nothing; it flags an overlap between an Auto-move target and the very reservation you are asking it to move; it treats a Multiple Experiences Pass as a timed conflict, which the booker deliberately does not; and its Tier 1 warning ignores whether a target is paused, already held, or on a future date. Treat its *Review* rows as prompts to look, not as verdicts. The *Fix before enabling* rows are sound.
+It reports **Dry run** rather than calling such a plan ready, and it asks the engine's own rules rather than re-deriving them — so it excludes the reservation an Auto-move target is trying to move, ignores a Multiple Experiences Pass the way the booker does, stays quiet about overlaps when Avoid clashes is off, and only raises the Tier 1 warning where a hold is actually possible. Blockers are listed above reviews.
 
 ### Day plans
 
@@ -73,7 +73,7 @@ Where AutoLL orders same-tick candidates by the LL list's **Priority** sort alon
 
 At the foot of the day summary, a read-only picture of the park day: held Lightning Lanes in one column, the return windows Autopilot is allowed to use in the other, both on a 4am-to-4am rail. An amber target window crosses the protected time around a held reservation; a green one does not.
 
-> **Known limits.** A target with no return window is treated as spanning the whole day, which means it intersects everything you hold — so an un-windowed target always reads amber, and two of them draw identical full-height bars on top of each other. The timeline is most useful once your targets have real windows. Held reservations at the same time also overlay each other, and an inverted window (earliest after latest) renders as an ordinary short bar rather than as the error it is.
+A target with no window is drawn across the day in grey and labelled "any time", because that is what it permits — not amber, since a full-day window necessarily crosses everything you hold. Red means the window is either wholly inside a protected span, so nothing it allows could be booked, or reversed. Bars are packed into columns, so simultaneous reservations sit side by side rather than on top of each other, and a held pass whose end time Disney did not send is marked rather than drawn as if the end were known.
 
 ## How Autopilot checks
 
@@ -102,9 +102,9 @@ AutoLL-2 additionally implements **demotion** — removing a scheduled time cont
 ## Diagnostics
 
 - **Live tier reporting.** Where Disney labels an attraction's tier and that disagrees with the curated table, the disagreement is reported rather than applied. Acting on it would let the tipboard and a booking disagree about the same attraction, so one curated table stays in control.
-- **Local timing.** The Autopilot status area shows how long the last cycle took and the session average. Measured in the browser, never transmitted, and it does not alter the cadence. Note that it times a whole cycle — availability, plans, eligibility and any booking attempt — so a tick that acted is slower than one that only looked, and a tick that failed instantly reads as fast.
-- **Release manifest.** Each published build carries `autoll2-release.json`, naming the source revision, and `autoll2-files.sha256`, a SHA-256 manifest of every deployed payload file. They are generated after the static site, app bundle and runtime module are assembled, so the hashes describe what was actually published. (The static pages and the runtime module come from other branches, whose revisions the record does not yet name.)
-- **Data freshness audit.** A weekly workflow re-runs the curated-data and ID-retirement suites so a hand edit that breaks their invariants is caught without waiting for a push. Both suites are offline: they check the committed data against itself, so they cannot tell you Disney has changed an ID — the unknown-attraction notice and live tier reporting in Autopilot remain what surfaces that.
+- **Local timing.** While Autopilot is running, its status area shows how long the last cycle took and the average across the session. Measured in the browser, never transmitted, and it does not alter the cadence. It times a whole cycle — availability, plans, eligibility and any booking attempt — so a tick that acted is legitimately slower than one that only looked. Failed cycles are excluded, since the cheapest failure here is instant and averaging it in made the number look best when nothing was getting through.
+- **Release manifest.** Each published build carries `autoll2-files.sha256`, a SHA-256 manifest of every deployed payload file, and `autoll2-release.json`, which names all three revisions it was assembled from — the bundle's, the installer pages' on `goofy`, and the runtime module's on `gh-pages`. Both are generated after every overlay and URL rewrite, so they describe what was actually published. The deploy fails if a file an install path needs by name is missing from the manifest.
+- **Curated data invariants.** A weekly workflow re-runs the curated-data and ID-retirement suites, so a hand edit that breaks their invariants is caught without waiting for a push. Both suites are offline by design — they check the committed data against itself — so they cannot tell you Disney has changed an attraction ID. The unknown-attraction notice and live tier reporting in Autopilot are what surface that, from real tipboard responses.
 
 ## Development
 
