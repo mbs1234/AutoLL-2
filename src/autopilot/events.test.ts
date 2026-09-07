@@ -2,7 +2,7 @@ import { PollerStatus } from '@/autopilot/usePoller';
 import { BookingLogEntry } from '@/contexts/AutopilotContext';
 import { ParkTime } from '@/datetime';
 
-import { latestEvent } from './events';
+import { latestActivity, latestEvent } from './events';
 
 const now = new ParkTime(11, 45);
 const off: PollerStatus = { mode: 'off', consecutiveFailures: 0, polls: 0 };
@@ -134,5 +134,44 @@ describe('latestEvent', () => {
       })
     ).toMatchObject({ text: 'Found Space Mountain at 1:10 PM' });
     expect(latestEvent(facts)?.text).toBe('Watching');
+  });
+});
+
+describe('latestActivity', () => {
+  const skip = {
+    name: 'Tower of Terror',
+    reason: 'tier-hold',
+    at: new ParkTime(11, 30),
+  };
+
+  it('is the newer of the last action and the last skip', () => {
+    expect(latestActivity({ bookingLog: [booked], lastSkip: skip })?.text).toBe(
+      'Skipped Tower of Terror: held the Tier 1 slot for a better attraction'
+    );
+    expect(
+      latestActivity({
+        bookingLog: [booked],
+        lastSkip: { ...skip, at: new ParkTime(11) },
+      })?.text
+    ).toBe('Booked Space Mountain for 1:10 PM');
+  });
+
+  it('falls back to the last find, and otherwise says nothing', () => {
+    const lastHit = {
+      experienceId: '1',
+      name: 'Space Mountain',
+      returnTime: new ParkTime(13, 10),
+    };
+    expect(latestActivity({ bookingLog: [], lastHit })?.text).toBe(
+      'Found Space Mountain at 1:10 PM'
+    );
+    expect(latestActivity({ bookingLog: [] })).toBeUndefined();
+  });
+
+  it('never reports status, which the screen reports itself', () => {
+    // A stopped poller is `latestEvent`'s business; activity is what happened.
+    expect(latestActivity({ bookingLog: [booked] })?.text).toBe(
+      'Booked Space Mountain for 1:10 PM'
+    );
   });
 });

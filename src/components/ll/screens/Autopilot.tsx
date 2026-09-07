@@ -2,7 +2,7 @@ import { use, useEffect, useState } from 'react';
 
 import { Experience } from '@/api/ll';
 import { MAX_ACTIONS_PER_DAY, MIN_ACTIONS_PER_DAY } from '@/autopilot/autobook';
-import { SKIP_TEXT } from '@/autopilot/events';
+import { SKIP_TEXT, latestActivity } from '@/autopilot/events';
 import {
   DEMOTION_MIN_COVERED_DAYS,
   LEARNED_MIN_DAYS,
@@ -15,11 +15,14 @@ import {
 } from '@/autopilot/refusal';
 import { MAX_CONSECUTIVE_FAILURES, syncedParkTime } from '@/autopilot/schedule';
 import { PollerStatus } from '@/autopilot/usePoller';
-import { targetApplies } from '@/autopilot/watchlist';
+import { WatchTarget, targetApplies } from '@/autopilot/watchlist';
 import Button from '@/components/Button';
 import Disclosure from '@/components/Disclosure';
 import Screen from '@/components/Screen';
 import { Time } from '@/components/Time';
+import Toggle from '@/components/Toggle';
+import LatestEvent from '@/components/ll/LatestEvent';
+import TargetCard from '@/components/ll/TargetCard';
 import AutopilotContext from '@/contexts/AutopilotContext';
 import BookingDateContext from '@/contexts/BookingDateContext';
 import ClientsContext from '@/contexts/ClientsContext';
@@ -32,6 +35,9 @@ import DaySummary from './DaySummary';
 import PlanCheck from './PlanCheck';
 
 export const AUTOPILOT = 'Autopilot';
+
+/** How long the offer to undo a removal stays: long enough to notice a mis-tap. */
+export const UNDO_MS = 8000;
 
 const MODE_TEXT: Record<PollerStatus['mode'], string> = {
   off: 'Off',
@@ -221,13 +227,9 @@ export default function Autopilot() {
     isWatched,
     addTarget,
     removeTarget,
-    toggleAutoBook,
-    toggleAutoModify,
-    toggleBookThenMove,
-    togglePaused,
-    toggleAutoSwap,
     notifications,
     lastHit,
+    lastSkip,
     bookingLog,
     bookingsRemaining,
     actionBudget,
@@ -240,9 +242,6 @@ export default function Autopilot() {
     setDryRun,
     avoidOverlaps,
     setAvoidOverlaps,
-    setTargetWindow,
-    setTargetRank,
-    togglePasskey,
     passkeyStatus,
     skipCounts,
     refusals,
@@ -253,6 +252,20 @@ export default function Autopilot() {
   const { goTo } = use(NavContext);
   const { bookingDate } = use(BookingDateContext);
   const { ll } = use(ClientsContext);
+
+  // A removal can be undone for a moment. The target is kept whole, flags and
+  // window included, because that is what a mis-tap used to lose.
+  const [removed, setRemoved] = useState<{
+    target: WatchTarget;
+    name: string;
+  }>();
+  useEffect(() => {
+    if (!removed) return;
+    const timer = setTimeout(() => setRemoved(undefined), UNDO_MS);
+    return () => clearTimeout(timer);
+  }, [removed]);
+  // The target just added starts unfolded: adding is when it gets set up.
+  const [justAdded, setJustAdded] = useState<string>();
 
   // Scoped to the park and date on screen. `targets` is the whole saved list
   // across every park and every date, so looking a row up in it returns
@@ -304,6 +317,11 @@ export default function Autopilot() {
             !experiences.some(exp => exp.id === target.experienceId)
         );
 
+  // What last happened, above the status. The status row reports the cadence
+  // and the failures itself, so this is activity only: an action, a skip, or
+  // a find.
+  const activity = latestActivity({ bookingLog, lastSkip, lastHit });
+
   return (
     <Screen title={AUTOPILOT}>
       <p>
@@ -320,6 +338,7 @@ export default function Autopilot() {
         >
           {enabled ? 'Turn off autopilot' : 'Turn on autopilot'}
         </Button>
+        <LatestEvent event={activity} />
         <StatusRow
           status={status}
           bookingsRemaining={bookingsRemaining}
@@ -385,58 +404,62 @@ export default function Autopilot() {
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Button
-          type="small"
+        <Toggle
+          on={dryRun}
+          variant="rehearsal"
+          label="Dry run"
+          onText="Dry run: on"
+          offText="Dry run: off"
           title={
             dryRun ? 'Let autopilot act for real' : 'Rehearse without booking'
           }
-          color={dryRun ? 'bg-yellow-600 text-white' : 'bg-gray-200 text-black'}
-          onClick={() => setDryRun(!dryRun)}
-        >
-          {dryRun ? 'Dry run: on' : 'Dry run: off'}
-        </Button>
-        <Button
-          type="small"
+          onToggle={() => setDryRun(!dryRun)}
+        />
+        <Toggle
+          on={requireWholeParty}
+          variant="safeguard"
+          label="Whole party only"
+          onText="Whole party only: on"
+          offText="Whole party only: off"
           title={
             requireWholeParty
               ? 'Allow booking for part of the party'
               : 'Only act when the whole party is eligible'
           }
-          color={
-            requireWholeParty
-              ? 'bg-red-700 text-white'
-              : 'bg-gray-200 text-black'
-          }
-          onClick={() => setRequireWholeParty(!requireWholeParty)}
-        >
-          {requireWholeParty ? 'Whole party only: on' : 'Whole party only: off'}
-        </Button>
-        <Button
-          type="small"
+          onToggle={() => setRequireWholeParty(!requireWholeParty)}
+        />
+        <Toggle
+          on={avoidOverlaps}
+          variant="safeguard"
+          label="Avoid clashes"
+          onText="Avoid clashes: on"
+          offText="Avoid clashes: off"
           title={
             avoidOverlaps
               ? 'Allow times that clash with existing plans'
               : 'Refuse times that clash with existing plans'
           }
-          color={
-            avoidOverlaps ? 'bg-red-700 text-white' : 'bg-gray-200 text-black'
-          }
-          onClick={() => setAvoidOverlaps(!avoidOverlaps)}
-        >
-          {avoidOverlaps ? 'Avoid clashes: on' : 'Avoid clashes: off'}
-        </Button>
+          onToggle={() => setAvoidOverlaps(!avoidOverlaps)}
+        />
       </div>
-      <p className="mt-1 text-xs text-gray-600">
-        {requireWholeParty
-          ? 'Autopilot will not book, move, or swap unless everyone in your party is eligible. A Lightning Lane for part of the group is often worse than none.'
-          : 'Autopilot books for whoever is eligible, the way booking by hand does. Turn this on to guarantee the group is never split.'}
-      </p>
-
-      <p className="mt-1 text-xs text-gray-600">
-        {avoidOverlaps
-          ? 'Autopilot will not take a return time that lands on top of a reservation you already hold — dining included. Booking by hand only warns about this; here there is nobody to warn.'
-          : 'Autopilot will take any time that fits, even one overlapping an existing reservation.'}
-      </p>
+      <Disclosure title="Why these settings?">
+        <div className="space-y-2 text-xs text-gray-600">
+          <p>
+            {requireWholeParty
+              ? 'Autopilot will not book, move, or swap unless everyone in your party is eligible. A Lightning Lane for part of the group is often worse than none.'
+              : 'Autopilot books for whoever is eligible, the way booking by hand does. Turn this on to guarantee the group is never split.'}
+          </p>
+          <p>
+            {avoidOverlaps
+              ? 'Autopilot will not take a return time that lands on top of a reservation you already hold — dining included. Booking by hand only warns about this; here there is nobody to warn.'
+              : 'Autopilot will take any time that fits, even one overlapping an existing reservation.'}
+          </p>
+          <p>
+            Dry run rehearses every check and logs what would have been booked,
+            moved or swapped, but commits nothing.
+          </p>
+        </div>
+      </Disclosure>
 
       {unknownExperienceIds && unknownExperienceIds.length > 0 && (
         <p className="mt-3 rounded-sm bg-red-100 p-2 text-sm font-semibold text-red-900">
@@ -462,13 +485,6 @@ export default function Autopilot() {
         </p>
       )}
 
-      {lastHit && (
-        <p className="mt-3 text-sm">
-          <span className="font-semibold">Last found:</span> {lastHit.name} at{' '}
-          <Time time={lastHit.returnTime} />
-        </p>
-      )}
-
       <h3>Watching ({targetsHere.length})</h3>
       {targets.length > targetsHere.length && (
         <p className="text-xs text-gray-600">
@@ -477,198 +493,50 @@ export default function Autopilot() {
           what is loaded here.
         </p>
       )}
-      {watched.length > 0 && (
-        <p className="text-xs text-gray-600">
-          A return-time window limits what Autopilot will <em>take</em>, not
-          what it tells you about: an attraction outside its window still
-          alerts, so a window can never hide the fact that something came back.
-        </p>
-      )}
       {watched.length === 0 ? (
         <p className="text-sm text-gray-600">
           Nothing selected yet. Pick attractions below.
         </p>
       ) : (
-        <ul>
-          {watched.map(exp => {
-            const target = targetFor(exp.id);
-            const autoBook = !!target?.autoBook;
-            const autoModify = !!target?.autoModify;
-            const bookThenMove = !!target?.bookThenMove;
-            const paused = !!target?.paused;
-            const autoSwap = !!target?.autoSwap;
-            return (
-              <li key={exp.id} className="py-1.5">
-                <div className="flex items-center gap-2">
-                  <Button
-                    title={`Stop watching ${exp.name}`}
-                    onClick={() => removeTarget(exp.id)}
-                  >
-                    <StarIcon />
-                  </Button>
-                  {exp.tier === undefined && (
-                    <Button
-                      type="small"
-                      title={
-                        target?.passkey
-                          ? `Stop using ${exp.name} as a passkey`
-                          : `Use ${exp.name} as a passkey`
-                      }
-                      color={
-                        target?.passkey
-                          ? 'bg-blue-700 text-white'
-                          : 'bg-gray-200 text-black'
-                      }
-                      onClick={() => togglePasskey(exp.id)}
-                    >
-                      {target?.passkey ? 'Passkey on' : 'Passkey off'}
-                    </Button>
-                  )}
-                  <span className="flex-1 font-semibold">{exp.name}</span>
-                </div>
-                {/* Toggles on their own row: five controls plus a long
-                    attraction name do not fit one phone-width line. */}
-                <div className="mt-1 ml-11 flex flex-wrap gap-2">
-                  <Button
-                    type="small"
-                    title={
-                      autoBook
-                        ? `Stop auto-booking ${exp.name}`
-                        : `Auto-book ${exp.name}`
-                    }
-                    color={
-                      autoBook
-                        ? 'bg-red-700 text-white'
-                        : 'bg-gray-200 text-black'
-                    }
-                    onClick={() => toggleAutoBook(exp.id)}
-                  >
-                    {autoBook ? 'Auto-book on' : 'Auto-book off'}
-                  </Button>
-                  <Button
-                    type="small"
-                    title={
-                      autoModify
-                        ? `Stop auto-moving ${exp.name}`
-                        : `Auto-move ${exp.name}`
-                    }
-                    color={
-                      autoModify
-                        ? 'bg-red-700 text-white'
-                        : 'bg-gray-200 text-black'
-                    }
-                    onClick={() => toggleAutoModify(exp.id)}
-                  >
-                    {autoModify ? 'Auto-move on' : 'Auto-move off'}
-                  </Button>
-                  <Button
-                    type="small"
-                    title={
-                      bookThenMove
-                        ? `Stop book-then-move for ${exp.name}`
-                        : `Book then move ${exp.name}`
-                    }
-                    color={
-                      bookThenMove
-                        ? 'bg-red-700 text-white'
-                        : 'bg-gray-200 text-black'
-                    }
-                    onClick={() => toggleBookThenMove(exp.id)}
-                  >
-                    {bookThenMove ? 'Book then move on' : 'Book then move off'}
-                  </Button>
-                  <Button
-                    type="small"
-                    title={paused ? `Resume ${exp.name}` : `Pause ${exp.name}`}
-                    color={
-                      paused
-                        ? 'bg-yellow-600 text-white'
-                        : 'bg-gray-200 text-black'
-                    }
-                    onClick={() => togglePaused(exp.id)}
-                  >
-                    {paused ? 'Paused' : 'Pause'}
-                  </Button>
-                  <Button
-                    type="small"
-                    title={
-                      autoSwap
-                        ? `Stop swapping in ${exp.name}`
-                        : `Swap in ${exp.name}`
-                    }
-                    color={
-                      autoSwap
-                        ? 'bg-red-700 text-white'
-                        : 'bg-gray-200 text-black'
-                    }
-                    onClick={() => toggleAutoSwap(exp.id)}
-                  >
-                    {autoSwap ? 'Swap in on' : 'Swap in off'}
-                  </Button>
-                </div>
-                {/* The window governs booking, moving and swapping. Leaving a
-                    bound empty means unbounded on that side. */}
-                <div className="mt-1 ml-11 flex flex-wrap items-center gap-2 text-sm">
-                  <span className="text-gray-600">Return between</span>
-                  <input
-                    type="time"
-                    aria-label={`Earliest return time for ${exp.name}`}
-                    className="rounded-sm border border-gray-300 px-1 py-0.5"
-                    value={
-                      target?.after ? String(target.after).slice(0, 5) : ''
-                    }
-                    onChange={e =>
-                      setTargetWindow(exp.id, 'after', e.target.value)
-                    }
-                  />
-                  <span className="text-gray-600">and</span>
-                  <input
-                    type="time"
-                    aria-label={`Latest return time for ${exp.name}`}
-                    className="rounded-sm border border-gray-300 px-1 py-0.5"
-                    value={
-                      target?.before ? String(target.before).slice(0, 5) : ''
-                    }
-                    onChange={e =>
-                      setTargetWindow(exp.id, 'before', e.target.value)
-                    }
-                  />
-                </div>
-                <label className="mt-1 ml-11 flex items-center gap-2 text-sm text-gray-600">
-                  Plan rank
-                  <input
-                    type="number"
-                    min={1}
-                    step={1}
-                    aria-label={`Plan rank for ${exp.name}`}
-                    className="w-16 rounded-sm border border-gray-300 px-1 py-0.5"
-                    value={target?.rank ?? ''}
-                    onChange={e =>
-                      setTargetRank(
-                        exp.id,
-                        e.target.value === ''
-                          ? undefined
-                          : Number(e.target.value)
-                      )
-                    }
-                  />
-                  <span>
-                    lower goes first; blank uses the built-in priority
-                  </span>
-                </label>
-              </li>
-            );
-          })}
+        <ul className="mt-2 space-y-2">
+          {watched.map(exp => (
+            <li key={exp.id}>
+              <TargetCard
+                experience={exp}
+                target={targetFor(exp.id)}
+                defaultOpen={exp.id === justAdded}
+                onRemove={() => {
+                  const target = targetFor(exp.id) ?? { experienceId: exp.id };
+                  removeTarget(exp.id);
+                  setRemoved({ target, name: exp.name });
+                }}
+              />
+            </li>
+          ))}
         </ul>
       )}
+      {removed && (
+        <div
+          role="status"
+          className="mt-2 flex items-center gap-2 rounded-sm bg-gray-100 p-2 text-sm"
+        >
+          <span className="flex-1">Stopped watching {removed.name}.</span>
+          <Button
+            type="small"
+            onClick={() => {
+              addTarget(removed.target);
+              setRemoved(undefined);
+            }}
+          >
+            Undo
+          </Button>
+        </div>
+      )}
 
-      {anyAutoBook && (
+      {pausedCount > 0 && (
         <p className="mt-2 text-sm">
-          <span className="font-semibold">Automatic booking is on.</span>{' '}
-          Autopilot will book the attractions marked above without asking, but
-          only when the offered return time falls inside that attraction&rsquo;s
-          window. It will not book an attraction it is already holding or still
-          waiting on an answer for.
+          <span className="font-semibold">{pausedCount} paused.</span> Still
+          watched and alerting; nothing is booked or moved for them.
         </p>
       )}
 
@@ -683,13 +551,8 @@ export default function Autopilot() {
 
       {anyAction && (
         <>
-          <p className="mt-2 text-sm">
-            <span className="font-semibold">
-              {bookingsRemaining} of {actionBudget} actions left today.
-            </span>{' '}
-            Bookings, moves and swaps share one budget for the park day. It
-            survives a reload and turning Autopilot off and on &mdash; both of
-            which used to refill it silently, which meant it bounded nothing.
+          <p className="mt-2 text-sm font-semibold">
+            {bookingsRemaining} of {actionBudget} actions left today.
           </p>
           <BudgetInput
             value={maxActionsPerDay}
@@ -698,45 +561,72 @@ export default function Autopilot() {
         </>
       )}
 
-      {anyAutoModify && (
-        <p className="mt-2 text-sm">
-          <span className="font-semibold">Auto-move is on.</span> For
-          attractions marked above that you already hold a reservation for,
-          Autopilot will move it earlier when a better time appears &mdash; but
-          only if the gain is at least 30 minutes, and never to a later time
-          than you already have.
-        </p>
-      )}
-
-      {anyBookThenMove && (
-        <p className="mt-2 text-sm">
-          <span className="font-semibold">Book then move is on.</span> For
-          attractions marked above, Autopilot books the first time offered
-          &mdash; even outside your window &mdash; so you hold something, then
-          works to move it into the window. A wide search finds availability far
-          more often than a narrow one.
-        </p>
-      )}
-
-      {pausedCount > 0 && (
-        <p className="mt-2 text-sm">
-          <span className="font-semibold">{pausedCount} paused.</span> Paused
-          attractions are still watched and still alert, but nothing is booked
-          or moved for them &mdash; and they will not make Autopilot hold back
-          on others. Use this to make sure a higher-priority attraction gets
-          booked first.
-        </p>
-      )}
-
-      {anyAutoSwap && (
-        <p className="mt-2 text-sm">
-          <span className="font-semibold">Swap in is on.</span> When all three
-          Multi Pass slots are taken and an attraction marked above appears,
-          Autopilot gives up your <em>lowest-priority</em> reservation for it
-          &mdash; preferring to let go of a non-Tier-1. The swap is a single
-          request, so the old reservation is only released if the new one is
-          secured. With a slot free it simply books instead.
-        </p>
+      {/* The long form of what each chip means, folded: a person setting up
+          a day reads it once; a person in the park has the summary line. */}
+      {watched.length > 0 && (
+        <Disclosure title="What these actions do">
+          <div className="space-y-2 text-sm">
+            <p>
+              A return-time window limits what Autopilot will <em>take</em>, not
+              what it tells you about: an attraction outside its window still
+              alerts, so a window can never hide the fact that something came
+              back.
+            </p>
+            {anyAutoBook && (
+              <p>
+                <span className="font-semibold">Automatic booking is on.</span>{' '}
+                Autopilot will book the attractions marked above without asking,
+                but only when the offered return time falls inside that
+                attraction&rsquo;s window. It will not book an attraction it is
+                already holding or still waiting on an answer for.
+              </p>
+            )}
+            {anyAutoModify && (
+              <p>
+                <span className="font-semibold">Auto-move is on.</span> For
+                attractions marked above that you already hold a reservation
+                for, Autopilot will move it earlier when a better time appears
+                &mdash; but only if the gain is at least 30 minutes, and never
+                to a later time than you already have.
+              </p>
+            )}
+            {anyBookThenMove && (
+              <p>
+                <span className="font-semibold">Book then move is on.</span> For
+                attractions marked above, Autopilot books the first time offered
+                &mdash; even outside your window &mdash; so you hold something,
+                then works to move it into the window. A wide search finds
+                availability far more often than a narrow one.
+              </p>
+            )}
+            {pausedCount > 0 && (
+              <p>
+                <span className="font-semibold">Pausing</span> keeps an
+                attraction watched and alerting while nothing is booked or moved
+                for it &mdash; and it will not make Autopilot hold back on
+                others. Use it to make sure a higher-priority attraction gets
+                booked first.
+              </p>
+            )}
+            {anyAutoSwap && (
+              <p>
+                <span className="font-semibold">Swap in is on.</span> When all
+                three Multi Pass slots are taken and an attraction marked above
+                appears, Autopilot gives up your <em>lowest-priority</em>{' '}
+                reservation for it &mdash; preferring to let go of a non-Tier-1.
+                The swap is a single request, so the old reservation is only
+                released if the new one is secured. With a slot free it simply
+                books instead.
+              </p>
+            )}
+            {anyAction && (
+              <p>
+                Bookings, moves and swaps share one budget for the park day. It
+                survives a reload and turning Autopilot off and on.
+              </p>
+            )}
+          </div>
+        </Disclosure>
       )}
 
       <h3>Lightning Lane attractions</h3>
@@ -751,7 +641,10 @@ export default function Autopilot() {
               <Button
                 title={`Watch ${exp.name}`}
                 color="bg-gray-200 text-black"
-                onClick={() => addTarget({ experienceId: exp.id })}
+                onClick={() => {
+                  addTarget({ experienceId: exp.id });
+                  setJustAdded(exp.id);
+                }}
               >
                 <StarIcon />
               </Button>

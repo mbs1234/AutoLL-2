@@ -5,8 +5,9 @@ of the same day (twelve suggestions), a line-by-line read of every screen it
 names, the 2026-09-07 session handoff, and the owner's decision of the same
 day to drop Disneyland and virtual-queue support from AutoLL-2. Phase 0a, the
 narrowing, landed the same day as `39b12b5`; Phase 0b, the harness and the
-shared primitives, followed it. Everything from Phase 1 on is the proposal for
-the owner to accept, trim, or reorder.
+shared primitives, followed it, and Phase 1a, the cards and the colour policy
+inside the existing Autopilot screen, after that. Everything from Phase 1b on
+is the proposal for the owner to accept, trim, or reorder.
 
 ## 0. Summary
 
@@ -310,6 +311,14 @@ Tests: `TargetCard.test.tsx`; `Autopilot.test.tsx` updated where copy moves
 behind a disclosure (the test helper `see` reads only the active screen, and
 `<details>` content is in the DOM whether open or not, so most assertions hold
 unchanged). Provider test for `lastSkip`.
+
+**Landed 2026-09-07.** One correction to the paragraph above: `toBeVisible`
+does see through a closed `<details>`, so every assertion on folded copy now
+opens its disclosure first, and the Booking activity queries are scoped to
+that list because the headline repeats its newest entry. The headline shows
+activity only (an action, a skip, a find); the status row still reports the
+cadence and the failures, so a stopped or refusing poller is not said twice.
+Passkey uses the action colour, since it decides what gets booked first.
 
 **1b. The split and the tab.** New `screens/Today.tsx` (live mode only, at
 this stage), `screens/Configure.tsx` (the remainder of `Autopilot.tsx`: cards,

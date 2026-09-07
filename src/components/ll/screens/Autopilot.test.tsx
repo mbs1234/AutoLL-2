@@ -154,6 +154,15 @@ function setup({
  * long screen, so they start closed; their contents are in the DOM but not
  * visible until opened, and `toBeVisible` is what tells the difference.
  */
+/**
+ * The Booking activity list on its own.
+ *
+ * The newest entry is also headlined above the status row, so an unscoped
+ * query for a name or a reason finds two elements.
+ */
+const activity = () =>
+  within(screen.getByText('Booking activity').closest('details')!);
+
 function open(title: string) {
   const summary = screen.getByText(title).closest('summary');
   fireEvent.click(summary!);
@@ -277,8 +286,9 @@ describe('Autopilot screen', () => {
       bookedCount: 1,
       bookingsRemaining: 2,
     });
-    expect(screen.getByText(/Automatic booking is on/)).toBeVisible();
     expect(screen.getByText(/2 of 10 actions left today/)).toBeVisible();
+    open('What these actions do');
+    expect(screen.getByText(/Automatic booking is on/)).toBeVisible();
   });
 
   // Book-then-move and swap both imply booking, so both spend the budget.
@@ -338,7 +348,7 @@ describe('Autopilot screen', () => {
     });
     open('Booking activity');
     expect(screen.getByText('Booking activity')).toBeVisible();
-    expect(screen.getByText(/Big Thunder/)).toBeVisible();
+    expect(activity().getByText(/Big Thunder/)).toBeVisible();
   });
 
   it('lists a failed booking with its reason', () => {
@@ -353,8 +363,8 @@ describe('Autopilot screen', () => {
       ],
     });
     open('Booking activity');
-    expect(screen.getByText('failed')).toBeVisible();
-    expect(screen.getByText(/Request failed/)).toBeVisible();
+    expect(activity().getByText('failed')).toBeVisible();
+    expect(activity().getByText(/Request failed/)).toBeVisible();
   });
 
   it('hides the activity section when nothing has happened', () => {
@@ -406,6 +416,7 @@ describe('Autopilot screen auto-move', () => {
       watched: [BZ],
       targets: [{ experienceId: BZ, autoModify: true }],
     });
+    open('What these actions do');
     expect(screen.getByText(/Auto-move is on/)).toBeVisible();
     expect(screen.getByText(/at least 30 minutes/)).toBeVisible();
     expect(screen.getByText(/never to a later time/)).toBeVisible();
@@ -429,8 +440,8 @@ describe('Autopilot screen auto-move', () => {
       ],
     });
     open('Booking activity');
-    expect(screen.getByText(/moved/)).toBeVisible();
-    expect(screen.getByText(/Slinky Dog Dash/)).toBeVisible();
+    expect(activity().getByText(/moved/)).toBeVisible();
+    expect(activity().getByText(/Slinky Dog Dash/)).toBeVisible();
   });
 });
 
@@ -453,6 +464,7 @@ describe('Autopilot screen book-then-move and pause', () => {
       watched: [BZ],
       targets: [{ experienceId: BZ, bookThenMove: true }],
     });
+    open('What these actions do');
     expect(screen.getByText(/Book then move is on/)).toBeVisible();
     expect(screen.getByText(/even outside your window/)).toBeVisible();
   });
@@ -508,6 +520,7 @@ describe('Autopilot screen swap', () => {
       watched: [BZ],
       targets: [{ experienceId: BZ, autoSwap: true }],
     });
+    open('What these actions do');
     expect(screen.getByText(/Swap in is on/)).toBeVisible();
     expect(screen.getByText(/lowest-priority/)).toBeVisible();
     expect(
@@ -529,8 +542,8 @@ describe('Autopilot screen swap', () => {
       ],
     });
     open('Booking activity');
-    expect(screen.getByText(/swapped in/)).toBeVisible();
-    expect(screen.getByText('Toy Story Mania')).toBeVisible();
+    expect(activity().getByText(/swapped in/)).toBeVisible();
+    expect(activity().getByText('Toy Story Mania')).toBeVisible();
   });
 });
 
@@ -553,6 +566,7 @@ describe('Autopilot screen party and diagnostics', () => {
     expect(
       screen.getByTitle('Allow booking for part of the party')
     ).toHaveTextContent('Whole party only: on');
+    open('Why these settings?');
     expect(screen.getByText(/never split|worse than none/)).toBeVisible();
   });
 
@@ -777,6 +791,7 @@ describe('return-time window', () => {
   // one thing worth knowing.
   it('says the window limits acting rather than alerting', () => {
     setup({ watched: [BZ] });
+    open('What these actions do');
     expect(screen.getByText(/still alerts/)).toBeVisible();
   });
 });
@@ -952,5 +967,85 @@ describe('Autopilot backoff', () => {
     });
     expect(screen.getByText(/Stopped after 8 failed checks/)).toBeVisible();
     expect(screen.queryByText(/in a row/)).not.toBeInTheDocument();
+  });
+});
+
+// A target used to be seven rows tall and its star removed it in one tap.
+describe('Autopilot cards and headline', () => {
+  it('folds each target to one line that says what will happen', () => {
+    setup({
+      watched: [BZ],
+      targets: [{ experienceId: BZ, autoBook: true, rank: 1 }],
+    });
+    const summary = screen
+      .getByText(wdw.experience(BZ).name)
+      .closest('summary')!;
+    expect(within(summary).getByText(/Auto-book/)).toBeInTheDocument();
+    expect(within(summary).getByText(/Rank 1/)).toBeInTheDocument();
+  });
+
+  it('folds the explanations away until asked', () => {
+    setup({
+      watched: [BZ],
+      targets: [{ experienceId: BZ, autoModify: true }],
+    });
+    expect(screen.getByText(/Auto-move is on/)).not.toBeVisible();
+    open('What these actions do');
+    expect(screen.getByText(/Auto-move is on/)).toBeVisible();
+  });
+
+  it('headlines the latest action above the status', () => {
+    setup({
+      enabled: true,
+      status: { ...OFF, mode: 'idle', polls: 12 },
+      bookingLog: [
+        {
+          name: 'Big Thunder',
+          at: new ParkTime(9, 47),
+          status: 'booked',
+          returnTime: new ParkTime(11, 5),
+        },
+      ],
+    });
+    expect(screen.getByText(/Booked Big Thunder for 11:05 AM/)).toBeVisible();
+  });
+
+  it('headlines the last skip by name', () => {
+    setup({
+      enabled: true,
+      status: { ...OFF, mode: 'idle', polls: 12 },
+      lastSkip: {
+        name: 'Tower of Terror',
+        reason: 'offer-outside-window',
+        at: new ParkTime(11, 43),
+      },
+    });
+    expect(
+      screen.getByText(
+        /Skipped Tower of Terror: the offered time was outside the window/
+      )
+    ).toBeVisible();
+  });
+
+  it('offers to undo a removal', () => {
+    const { removeTarget, addTarget } = setup({ watched: [BZ] });
+    fireEvent.click(
+      screen.getByTitle(`Stop watching ${wdw.experience(BZ).name}`)
+    );
+    expect(removeTarget).toHaveBeenCalledWith(BZ);
+    expect(screen.getByRole('status')).toHaveTextContent(
+      `Stopped watching ${wdw.experience(BZ).name}`
+    );
+    fireEvent.click(screen.getByText('Undo'));
+    expect(addTarget).toHaveBeenCalledWith({ experienceId: BZ });
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('keeps the count of paused targets visible', () => {
+    setup({
+      watched: [BZ],
+      targets: [{ experienceId: BZ, paused: true }],
+    });
+    expect(screen.getByText(/1 paused/)).toBeVisible();
   });
 });

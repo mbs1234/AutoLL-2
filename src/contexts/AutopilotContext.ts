@@ -30,6 +30,13 @@ export interface BookingLogEntry {
   reason?: string;
 }
 
+/** A skip with the name and time the aggregate counts leave out. */
+export interface Skip {
+  name: string;
+  reason: string;
+  at: ParkTime;
+}
+
 export interface AutopilotState {
   enabled: boolean;
   /**
@@ -120,6 +127,12 @@ export interface AutopilotState {
    * nothing get booked?" gets answered.
    */
   skipCounts: Record<string, number>;
+  /**
+   * The most recent skip, by name. Not persisted, and not in the log: skips
+   * are the common case and would swamp it, but the newest one is the answer
+   * to "what is it doing right now?" more often than anything in the log.
+   */
+  lastSkip?: Skip;
   /**
    * Which booking-path calls Disney is refusing outright, if any.
    *

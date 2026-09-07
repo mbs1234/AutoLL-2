@@ -96,6 +96,7 @@ function Probe() {
     setTargetWindow,
     setDryRun,
     setRequireWholeParty,
+    lastSkip,
   } = use(AutopilotContext);
   return (
     <div>
@@ -114,6 +115,9 @@ function Probe() {
       <span data-testid="remaining">{bookingsRemaining}</span>
       <span data-testid="budget">{actionBudget}</span>
       <span data-testid="passkey">{passkeyStatus}</span>
+      <span data-testid="lastSkip">
+        {lastSkip ? `${lastSkip.name}: ${lastSkip.reason}` : ''}
+      </span>
       <span data-testid="refused">
         {refusedCalls(refusals ?? NO_REFUSALS, syncedParkTime()).join(',')}
       </span>
@@ -1237,6 +1241,34 @@ describe('AutopilotProvider persistence and diagnostics', () => {
     // The Probe does not render skipCounts; check the effect on the log
     // instead -- skips must never reach it.
     expect(loadBookingLog()).toEqual([]);
+    // What it does render is the newest skip, named, which is what the screen
+    // headlines while the counts stay in the diagnostics.
+    expect(screen.getByTestId('lastSkip')).toHaveTextContent(
+      new RegExp(`^${wdw.experience(BZ).name}: .*outside-window$`)
+    );
+  });
+
+  it('forgets the last skip when switched on again', async () => {
+    saveWatchList([
+      { experienceId: BZ, autoBook: true, before: new ParkTime(12) },
+    ]);
+    setupBooking({ offerHour: 20 });
+    await enable();
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(5000);
+    });
+    expect(screen.getByTestId('lastSkip')).not.toHaveTextContent(/^$/);
+    await enable();
+    // Disarmed, so the next run has nothing to skip and what it cleared on
+    // the way in stays clear.
+    await act(async () => {
+      screen.getByText('unarm BZ').click();
+    });
+    await enable();
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(5000);
+    });
+    expect(screen.getByTestId('lastSkip')).toHaveTextContent(/^$/);
   });
 });
 

@@ -93,6 +93,7 @@ import {
 import AutopilotContext, {
   AutopilotHit,
   BookingLogEntry,
+  Skip,
 } from '@/contexts/AutopilotContext';
 import BookingDateContext from '@/contexts/BookingDateContext';
 import ClientsContext from '@/contexts/ClientsContext';
@@ -194,6 +195,7 @@ export default function AutopilotProvider({
     useState<BookingLogEntry[]>(loadBookingLog);
   const [settings, setSettings] = useState(loadSettings);
   const [skipCounts, setSkipCounts] = useState<Record<string, number>>({});
+  const [lastSkip, setLastSkip] = useState<Skip>();
   const [passkeyStatus, setPasskeyStatus] = useState<
     'off' | 'waiting' | 'unlocked'
   >('off');
@@ -362,8 +364,11 @@ export default function AutopilotProvider({
     applyBudget();
   }, [applyBudget]);
 
-  const bumpSkip = useCallback((reason: string) => {
+  const bumpSkip = useCallback((reason: string, name?: string) => {
     setSkipCounts(prev => ({ ...prev, [reason]: (prev[reason] ?? 0) + 1 }));
+    // The newest skip is kept singly, by name. The counts say why nothing was
+    // booked over a morning; this says what just happened.
+    if (name) setLastSkip({ name, reason, at: syncedParkTime() });
   }, []);
 
   const clock = useCallback(
@@ -773,7 +778,7 @@ export default function AutopilotProvider({
           // morning value.
           if (!budgetSkipRef.current) {
             budgetSkipRef.current = true;
-            bumpSkip('budget-exhausted');
+            bumpSkip('budget-exhausted', experience.name);
           }
           break;
         }
@@ -792,7 +797,9 @@ export default function AutopilotProvider({
           // Held for good, unless this is a rejection whose wait has run out.
           const retryAt = retryAtRef.current.get(`${kind}:${experience.id}`);
           if (retryAt === undefined || Date.now() < retryAt) {
-            if (retryAt !== undefined) bumpSkip('waiting-to-retry');
+            if (retryAt !== undefined) {
+              bumpSkip('waiting-to-retry', experience.name);
+            }
             continue;
           }
           retryAtRef.current.delete(`${kind}:${experience.id}`);
@@ -806,7 +813,7 @@ export default function AutopilotProvider({
         // a notification. Modifying re-checks the window itself, against the
         // real target rather than the one book-then-move strips.
         if (kind !== 'modify' && !hit.inWindow) {
-          bumpSkip('outside-window');
+          bumpSkip('outside-window', experience.name);
           continue;
         }
 
@@ -815,7 +822,7 @@ export default function AutopilotProvider({
         // refuse every swap into the slot the victim occupies. The post-offer
         // check knows the victim and does the work.
         if (kind !== 'swap' && clashes(hit.returnTime, undefined, existing)) {
-          bumpSkip('overlaps-plans');
+          bumpSkip('overlaps-plans', experience.name);
           continue;
         }
 
@@ -846,7 +853,7 @@ export default function AutopilotProvider({
             settingsRef.current.requireWholeParty &&
             !wholePartyEligible(guests)
           ) {
-            bumpSkip('partial-party');
+            bumpSkip('partial-party', experience.name);
             continue;
           }
 
@@ -876,7 +883,7 @@ export default function AutopilotProvider({
             forToday &&
             shouldHoldTierSlot(hit, armed, nowTime, redeemedToday)
           ) {
-            bumpSkip('tier-hold');
+            bumpSkip('tier-hold', experience.name);
             continue;
           }
 
@@ -904,7 +911,7 @@ export default function AutopilotProvider({
                     )
                   : shouldAttempt(hit.target, ledgerRef.current);
             if (!pre.ok) {
-              bumpSkip(pre.reason);
+              bumpSkip(pre.reason, experience.name);
               continue;
             }
             // Rehearsal: marks only so this logs once, and stays out of the
@@ -1011,8 +1018,9 @@ export default function AutopilotProvider({
 
         // Skips are the common case mid-drop and would swamp the log, so they
         // are tallied instead.
-        if (outcome.status === 'skipped') bumpSkip(outcome.reason);
-        else logOutcome(experience.name, outcome);
+        if (outcome.status === 'skipped') {
+          bumpSkip(outcome.reason, experience.name);
+        } else logOutcome(experience.name, outcome);
 
         // After every attempt, not only a successful one: a booking request that
         // errored has already taken a doubt-hold on the allowance, so a
@@ -1290,6 +1298,7 @@ export default function AutopilotProvider({
         setBookingsRemaining(ledgerRef.current.remaining);
         budgetSkipRef.current = false;
         setSkipCounts({});
+        setLastSkip(undefined);
         refusalRef.current = NO_REFUSALS;
         setRefusals(NO_REFUSALS);
         // Fresh baseline: the first poll of a run sees everything as "new", and
@@ -1532,6 +1541,7 @@ export default function AutopilotProvider({
         setAvoidOverlaps: on =>
           setSettings(prev => ({ ...prev, avoidOverlaps: on })),
         skipCounts,
+        lastSkip,
         refusals,
         dropSummaries,
       }}

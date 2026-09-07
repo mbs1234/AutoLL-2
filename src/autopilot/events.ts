@@ -1,6 +1,10 @@
 import { CALL_TEXT, RefusalState, refusedCalls } from '@/autopilot/refusal';
 import { PollerStatus } from '@/autopilot/usePoller';
-import { AutopilotHit, BookingLogEntry } from '@/contexts/AutopilotContext';
+import {
+  AutopilotHit,
+  BookingLogEntry,
+  Skip,
+} from '@/contexts/AutopilotContext';
 import { ParkTime, formatTime } from '@/datetime';
 
 /** Plain-language labels for skip reasons; unknown ones show as-is. */
@@ -22,13 +26,6 @@ export const SKIP_TEXT: Record<string, string> = {
 };
 
 export const skipText = (reason: string) => SKIP_TEXT[reason] ?? reason;
-
-/** A skip with the name and time the aggregate counts leave out. */
-export interface Skip {
-  name: string;
-  reason: string;
-  at: ParkTime;
-}
 
 export type EventLevel = 'info' | 'warn' | 'error';
 
@@ -96,6 +93,45 @@ function skipEvent(skip: Skip): AutopilotEvent {
   };
 }
 
+export interface ActivityFacts {
+  /** Newest first, as the provider keeps it. */
+  bookingLog: BookingLogEntry[];
+  lastSkip?: Skip;
+  lastHit?: AutopilotHit;
+}
+
+/** The newer of the last logged action and the last skip, if either. */
+function newestAction({ bookingLog, lastSkip }: ActivityFacts) {
+  return [
+    bookingLog[0] ? actionEvent(bookingLog[0]) : undefined,
+    lastSkip ? skipEvent(lastSkip) : undefined,
+  ]
+    .filter((event): event is AutopilotEvent => !!event)
+    .sort((a, b) => +(b.at ?? 0) - +(a.at ?? 0))[0];
+}
+
+function findEvent(hit: AutopilotHit): AutopilotEvent {
+  return {
+    level: 'info',
+    text: `Found ${hit.name} at ${fmt(hit.returnTime)}`,
+  };
+}
+
+/**
+ * What Autopilot last did, or last saw, with no status mixed in.
+ *
+ * For a screen that already reports the cadence and the failures itself and
+ * wants one more line: the newest action or skip, else the last find.
+ */
+export function latestActivity(
+  facts: ActivityFacts
+): AutopilotEvent | undefined {
+  return (
+    newestAction(facts) ??
+    (facts.lastHit ? findEvent(facts.lastHit) : undefined)
+  );
+}
+
 /**
  * The one line worth showing about Autopilot right now.
  *
@@ -127,12 +163,7 @@ export function latestEvent(facts: EventFacts): AutopilotEvent | undefined {
     };
   }
 
-  const newest = [
-    bookingLog[0] ? actionEvent(bookingLog[0]) : undefined,
-    lastSkip ? skipEvent(lastSkip) : undefined,
-  ]
-    .filter((event): event is AutopilotEvent => !!event)
-    .sort((a, b) => +(b.at ?? 0) - +(a.at ?? 0))[0];
+  const newest = newestAction({ bookingLog, lastSkip });
   const busy = status.mode === 'burst' || status.mode === 'approach';
   const recent = newest?.at !== undefined && +now - +newest.at <= RECENT_S;
   if (newest && (!busy || recent)) return newest;
@@ -143,12 +174,7 @@ export function latestEvent(facts: EventFacts): AutopilotEvent | undefined {
     const drop = status.target ? ` for the ${fmt(status.target)} drop` : '';
     return { at: now, level: 'info', text: `${pace}${drop}` };
   }
-  if (lastHit) {
-    return {
-      level: 'info',
-      text: `Found ${lastHit.name} at ${fmt(lastHit.returnTime)}`,
-    };
-  }
+  if (lastHit) return findEvent(lastHit);
   if (status.mode === 'idle') {
     return { at: now, level: 'info', text: 'Watching' };
   }
