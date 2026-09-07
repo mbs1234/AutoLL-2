@@ -6,6 +6,8 @@ It does everything AutoLL v1.0 does, with the same Autopilot engine, the same Ne
 
 **Important:** AutoLL-2 is unofficial, experimental software, and the more experimental of the two builds. It is not affiliated with or endorsed by Disney, may stop working at any time, and is provided without warranty. Keep the official Disney app as the source of truth for your plans and reservations. If you want the build that is meant to be dependable on a trip, use AutoLL.
 
+**Walt Disney World only, for booking.** Opening it on `disneyland.disney.go.com` gives a working Disneyland session — sign-in, the park selector, the tipboard, Plans, and Autopilot's watching and alerting — but it cannot complete a booking there, because the module Disneyland's booking request is built from is one upstream has never published. The Book and Modify buttons are therefore switched off at Disneyland rather than offered and failing after a drop. See [FORK.md](FORK.md#disneyland).
+
 ## Install
 
 Open the [AutoLL-2 setup page](https://mbs1234.github.io/AutoLL-2/) on your phone and follow it. The two install paths — bookmarklet and userscript — work exactly as AutoLL's do.

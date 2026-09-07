@@ -96,6 +96,7 @@ all work regardless, and are the bulk of what this repository adds.
 | Change | Files | Why |
 | --- | --- | --- |
 | Added `diu` stub returning `{}` | `src/api/diu.ts` | Makes the tree buildable. Only DLR imports it; WDW never does, so WDW booking is unaffected. DLR booking is already broken upstream (commit `3eaf2a4`). |
+| Disneyland booking turned off | `src/api/ll/dlr.ts` | `rules.book: false`. See below — it could not work, and saying so is better than offering it. |
 | Added `build:fork` script | `package.json` | `vite build` without upstream's `rm -f src/api/diu.ts`, which would delete the stub. |
 | Pages URL repointed | `App.tsx`, `LoginForm.tsx`, `screens/News.tsx` + both `.test.tsx` | `LoginForm.tsx` is the critical one — it is the OneID `responderPage`. Wrong value breaks login entirely. |
 | Usage ping disabled | `src/ping.ts`, `src/ping.test.ts` | No reason for a personal build to phone home. `PING_ENABLED = false`. |
@@ -174,6 +175,40 @@ It exists for a park morning with a red unrelated test and nothing else.
 Note two of the excluded suites (`Home.test.tsx`, `Home/MultiPassList.test.tsx`)
 cover screens this fork modified, so the Autopilot UI carries its own tests
 (`screens/Autopilot.test.tsx`) rather than relying on the stale ones.
+
+## Disneyland
+
+**Disneyland loads but cannot book, and the build now says so.**
+
+The resort is chosen from the page origin, so opening the bookmarklet on
+`disneyland.disney.go.com` gets a working DLR session: sign-in, the park
+selector over both parks, the tipboard, Plans. What it cannot do is complete
+a booking, because `LLClientDLR.book()` builds its request body from `diu` —
+the one module upstream never publishes — and the stub this fork ships to
+make the tree build returns `{}`. Upstream's DLR booking has been broken
+since `3eaf2a4`.
+
+`rules.book` sits on the base at `true`, restored for WDW's sake in
+`4638e90`, and DLR inherited it by omission. So Disneyland rendered a Book
+button, a Modify button and a fully armable Autopilot over a path that
+dead-ends — and the failure arrives *after* the drop, looking like Disney
+refusing the request rather than a module that was never there. `rules.book`
+is now `false` on the DLR client, which turns off both buttons
+(`MultiPassList.tsx`, `ModifyButton.tsx`).
+
+Two consequences worth knowing:
+
+- The Autopilot screen is still reachable on DLR and will still watch and
+  alert. That much works, and it is the half of the feature that does not
+  depend on `diu`.
+- `LLClientDLR.guests()` takes neither a date nor a park, so the Plan Check
+  screen's "eligible in general, at *park* on this date" is not true at
+  Disneyland: the endpoint has no date field at all, `parkId` is hardcoded to
+  Disneyland rather than California Adventure, and `experienceId` has no null
+  form so a park-less check is silently scoped to Big Thunder Mountain
+  Railroad. Left as is on purpose — a DLR user can no longer arm anything for
+  the preflight to be about, and threading a park through would make one
+  clause of that sentence true while leaving two false.
 
 ## Local toolchain
 
