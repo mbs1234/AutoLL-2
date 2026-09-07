@@ -47,6 +47,12 @@ On iOS, add the page to your Home Screen if you want system notifications. Witho
 
 AutoLL-2 stores its sign-in state, saved party, preferences, watch lists, and diagnostics under its own `autoll2.*` browser-storage keys. It does not import BG1 or AutoLL settings, so the first use requires a separate sign-in and setup.
 
+Each published build includes `autoll2-release.json`, which names the source
+revision, and `autoll2-files.sha256`, a SHA-256 manifest of every deployed
+payload file. They are generated only after the bookmarklet site, app bundle,
+and runtime module are assembled; the deployment verifies the checksums before
+uploading to Pages.
+
 ## Before you turn anything on
 
 Start with the **LL** tab:
@@ -91,6 +97,11 @@ Use **Plans** to review Lightning Lanes and other itinerary items. Autopilot can
 Open Autopilot with the clock button on the LL tab. First, star the Multi Pass attractions you want it to watch. Watching alone only checks and alerts; it does not authorize any booking or modification.
 
 Use **Plan check** before turning Autopilot on. It reviews the selected park day without generating offers or making a booking: targets missing from the loaded tipboard, paused or unarmed actions, impossible return windows, action-budget limits, configured overlap risks, and Tier 1 tradeoffs. Its optional **Check current party** button makes one eligibility-only request; availability and attraction-specific eligibility are still rechecked immediately before every action.
+
+**View day summary** includes a read-only **Day timeline**. Held Lightning
+Lanes appear beside Autopilot's allowed return windows. An amber target window
+crosses the protected time around an existing reservation, so adjust it (or
+turn off Avoid clashes) before expecting Autopilot to use it.
 
 For each watched attraction, choose the actions you want. Each is off by default and independent, because the risks differ:
 

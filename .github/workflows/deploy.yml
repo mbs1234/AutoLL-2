@@ -179,6 +179,34 @@ jobs:
           echo " and live-data host, still in use.)"
           grep -rn 'joelface' dist || echo "none"
 
+      # A Pages deployment has no release attachment, so leave a small,
+      # inspectable record in the published artifact itself. This covers every
+      # payload file (including chunks and the runtime module) and ties it to
+      # the source revision that produced it. The manifest is deliberately
+      # generated only after every overlay and URL rewrite has completed.
+      - name: Create and verify release manifest
+        run: |
+          set -euo pipefail
+          (
+            cd dist
+            find . -type f \
+              ! -name autoll2-files.sha256 \
+              ! -name autoll2-release.json \
+              -printf '%P\n' \
+              | LC_ALL=C sort \
+              | while IFS= read -r file; do sha256sum "$file"; done \
+              > autoll2-files.sha256
+            sha256sum --check autoll2-files.sha256
+            for file in bg1.js sensor-data.js index.html autoloader.user.js; do
+              grep -Fq "  $file" autoll2-files.sha256 || {
+                echo "::error::$file is absent from the release manifest"
+                exit 1
+              }
+            done
+            printf '{\n  "application": "AutoLL-2",\n  "sourceRevision": "%s",\n  "fileManifest": "autoll2-files.sha256"\n}\n' \
+              "$GITHUB_SHA" > autoll2-release.json
+          )
+
       - name: Show what will be deployed
         run: ls -la dist
 

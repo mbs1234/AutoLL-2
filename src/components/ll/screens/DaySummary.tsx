@@ -4,6 +4,7 @@ import { LLMP, isLLMP } from '@/api/itinerary';
 import { targetApplies } from '@/autopilot/watchlist';
 import Screen from '@/components/Screen';
 import { Time } from '@/components/Time';
+import DayTimeline from '@/components/ll/DayTimeline';
 import AutopilotContext from '@/contexts/AutopilotContext';
 import BookingDateContext from '@/contexts/BookingDateContext';
 import ClientsContext from '@/contexts/ClientsContext';
@@ -122,6 +123,8 @@ export default function DaySummary() {
             : 'Waiting for Disney to confirm every selected guest cleared the Tier 1 hold.'}
         </p>
       )}
+
+      <DayTimeline lanes={lanes} targets={targetsToday} />
     </Screen>
   );
 }
