@@ -1,6 +1,7 @@
 import { use, useRef, useState } from 'react';
 
 import { authStore } from '@/api/auth';
+import { APP_NAME } from '@/appIdentity';
 import Overlay from '@/components/Overlay';
 import NavContext from '@/contexts/NavContext';
 // import News from '@/components/screens/News';
@@ -74,6 +75,15 @@ export default function SettingsButton() {
                 </li>
               );
             })}
+            {/* Which build this is. More than one bg1-derived build can be
+                installed on the same phone; this used to sit in the tab bar,
+                where five tabs no longer leave it room. */}
+            <li
+              className="px-4 text-center text-sm text-gray-500"
+              aria-label={`Build: ${APP_NAME}`}
+            >
+              {APP_NAME}
+            </li>
           </ul>
         </Overlay>
       )}

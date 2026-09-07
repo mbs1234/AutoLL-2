@@ -14,7 +14,7 @@ Open the [AutoLL-2 setup page](https://mbs1234.github.io/AutoLL-2/) on your phon
 
 AutoLL-2 keeps its own `autoll2.*` browser storage and its own `autoll2-` notification tags, both separate from AutoLL's and from BG1's. That means the two builds can be installed side by side without overwriting each other's watch lists, budgets, booking tracking or alerts — and that AutoLL-2 needs its own sign-in and its own setup. Nothing is imported from either.
 
-The bottom tab bar is labelled `aLL-2`, so two builds open at once can be told apart.
+The settings menu names the build, so two builds open at once can be told apart.
 
 ## What AutoLL-2 adds
 
@@ -23,7 +23,8 @@ The bottom tab bar is labelled `aLL-2`, so two builds open at once can be told a
 | **Passkey and tap-in strategy**  | Mark one easy non-Tier-1 attraction as the pass to spend first. Once that entitlement is established as gone, AutoLL-2 reports the day's Tier 1 restriction lifted. |
 | **Day plans**                    | Watch targets carry a park, a date and a manual **rank**, so a watch list is a plan for one park day rather than a global list.                                     |
 | **Plan check**                   | A preflight over the plan you have configured, run before turning Autopilot on. Makes no booking requests.                                                          |
-| **Day summary and day timeline** | One screen for the selected day, including a read-only picture of held Lightning Lanes beside the windows Autopilot may use.                                        |
+| **Today, Configure, Activity**   | A Today tab that answers what Autopilot is doing and what is held; setup on its own Configure screen; the log and diagnostics on Activity.                            |
+| **Timeline**                     | A read-only picture of the day: held Lightning Lanes beside the windows Autopilot may use.                                                                            |
 | **More cadence modes**           | Refill windows, a longer drop-burst lead, and a bounded cadence for a next-day watch.                                                                               |
 | **Reopening alerts**             | A watched attraction coming back from a temporary closure raises an alert — an alert only.                                                                          |
 | **Live tier reporting**          | Where Disney labels a tier that disagrees with the curated table, the disagreement is reported rather than applied.                                                 |
@@ -35,7 +36,7 @@ Each is described below.
 
 ### Plan check
 
-**Plan check** sits on the Autopilot screen beside **View day summary**. It reviews the plan already on screen and reports three levels: *Fix before enabling*, *Review*, and *Ready*.
+**Plan check** is one tap from the Today tab. It reviews the plan already on screen and reports three levels: *Fix before enabling*, *Review*, and *Ready*.
 
 It checks configuration only — targets that are not on the loaded tipboard, actions armed on a paused attraction, impossible return windows (earliest after latest), an exhausted action budget, return windows that overlap something you already hold, more than one Tier 1 armed, and the two global toggles that widen what Autopilot may do.
 
@@ -67,13 +68,21 @@ Where AutoLL orders same-tick candidates by the LL list's **Priority** sort alon
 
 ## The day, at a glance
 
-### Day summary
+### Today
 
-**View day summary** on the Autopilot screen gives one screen for the selected day: every Multi Pass held on that date in any park with its return and grace-scan window, the next Lightning Lane time, the active plan for the loaded park in rank order, and passkey status.
+The first tab. The Autopilot switch, a headline saying what it last did ("7:17 PM — Moved Haunted Mansion from 8:29 PM to 7:49 PM"), its status, then buttons to Configure, Plan check, Timeline and Activity; below them the day's alerts, the next Lightning Lane and drop times, every Multi Pass held on the date in any park with its grace-scan window, and the plan for the loaded park in rank order with what each target is armed to do. Every Lightning Lane screen carries the same one-line context under its title: park, date, party size, and whether this is a dry run.
 
-### Day timeline
+### Configure
 
-At the foot of the day summary, a read-only picture of the park day: held Lightning Lanes in one column, the return windows Autopilot is allowed to use in the other, both on a 4am-to-4am rail. An amber target window crosses the protected time around a held reservation; a green one does not.
+Where a plan is set up: the three safeguards (dry run, whole party only, avoid clashes), a card per watched attraction that folds to one line and opens to its actions, return window and rank, and the list of attractions to add. Chips are coloured by what turning them on does — blue for an action that spends an entitlement, green for a safeguard, yellow for rehearsal, amber for paused — and red is kept for Stop and errors. Removing a target takes an open card and can be undone for a few seconds.
+
+### Activity
+
+The day's booking log, the counts of why nothing was booked, and the drop times Autopilot has learned.
+
+### Timeline
+
+A read-only picture of the park day: held Lightning Lanes in one column, the return windows Autopilot is allowed to use in the other, both on a 4am-to-4am rail. An amber target window crosses the protected time around a held reservation; a green one does not.
 
 A target with no window is drawn across the day in grey and labelled "any time", because that is what it permits — not amber, since a full-day window necessarily crosses everything you hold. Red means the window is either wholly inside a protected span, so nothing it allows could be booked, or reversed. Bars are packed into columns, so simultaneous reservations sit side by side rather than on top of each other, and a held pass whose end time Disney did not send is marked rather than drawn as if the end were known.
 

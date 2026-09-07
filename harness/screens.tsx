@@ -1,20 +1,23 @@
-import Autopilot from '@/components/ll/screens/Autopilot';
-import DaySummary from '@/components/ll/screens/DaySummary';
+import Activity from '@/components/ll/screens/Activity';
+import Configure from '@/components/ll/screens/Configure';
 import PlanCheck from '@/components/ll/screens/PlanCheck';
 import TimeSearch from '@/components/ll/screens/TimeSearch';
+import Timeline from '@/components/ll/screens/Timeline';
 
 import { World } from './fakes/world';
 
 export type ScreenName =
-  | 'autopilot'
+  | 'configure'
   | 'plancheck'
-  | 'daysummary'
+  | 'timeline'
+  | 'activity'
   | 'timesearch';
 
 export const SCREEN_TITLES: Record<ScreenName, string> = {
-  autopilot: 'Autopilot',
+  configure: 'Configure',
   plancheck: 'Plan check',
-  daysummary: 'Day summary',
+  timeline: 'Timeline',
+  activity: 'Activity',
   timesearch: 'Time Search',
 };
 
@@ -29,12 +32,14 @@ export function screenFor(
   world: World
 ): React.JSX.Element | undefined {
   switch (name) {
-    case 'autopilot':
-      return <Autopilot />;
+    case 'configure':
+      return <Configure />;
     case 'plancheck':
       return <PlanCheck />;
-    case 'daysummary':
-      return <DaySummary />;
+    case 'timeline':
+      return <Timeline />;
+    case 'activity':
+      return <Activity />;
     case 'timesearch': {
       const held = world.heldToday()[0];
       return held ? <TimeSearch booking={held} /> : undefined;

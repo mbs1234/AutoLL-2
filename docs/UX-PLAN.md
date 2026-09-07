@@ -5,9 +5,11 @@ of the same day (twelve suggestions), a line-by-line read of every screen it
 names, the 2026-09-07 session handoff, and the owner's decision of the same
 day to drop Disneyland and virtual-queue support from AutoLL-2. Phase 0a, the
 narrowing, landed the same day as `39b12b5`; Phase 0b, the harness and the
-shared primitives, followed it, and Phase 1a, the cards and the colour policy
-inside the existing Autopilot screen, after that. Everything from Phase 1b on
-is the proposal for the owner to accept, trim, or reorder.
+shared primitives, followed it; Phase 1a, the cards and the colour policy
+inside the existing Autopilot screen, after that; and Phase 1b, the split into
+Today, Configure, Activity and Timeline with Today as a fifth tab, after that.
+Everything from Phase 2 on is the proposal for the owner to accept, trim, or
+reorder.
 
 ## 0. Summary
 
@@ -340,6 +342,14 @@ with no horizontal overflow, the tab bar fits, and every behaviour the old
 Autopilot suite asserted still has a home.
 
 Size: two to three sessions, most of it the test migration.
+
+**Landed 2026-09-07.** Decisions taken as recommended: Today is the first and
+default tab; Activity is its own screen; Day Summary is retired into Today and
+Timeline; `Autopilot.tsx` is gone, with the header button switching to the
+Today tab. The 81 tests of the old Autopilot suite are spread over
+`Today.test.tsx`, `Configure.test.tsx` and `Activity.test.tsx` on a shared
+`screenTestSetup.tsx`. Every Lightning Lane screen pushed from Today carries
+the `ContextStrip` as its subhead.
 
 ### Phase 2: Plan Check acts, the Timeline navigates
 

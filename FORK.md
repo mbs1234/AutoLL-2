@@ -228,9 +228,10 @@ until 2026-09-07.)
 ## Autopilot
 
 Everything this fork adds beyond the build fixes lives under `src/autopilot/`,
-wired in by `src/providers/AutopilotProvider.tsx` and surfaced in
-`src/components/ll/screens/Autopilot.tsx`. The README is the user-facing guide;
-this is the map.
+wired in by `src/providers/AutopilotProvider.tsx` and surfaced on the Today tab
+(`src/components/ll/screens/Today.tsx`), with `Configure.tsx`, `Activity.tsx`
+and `Timeline.tsx` behind it. The README is the user-facing guide; this is the
+map.
 
 | Module | Role |
 | --- | --- |

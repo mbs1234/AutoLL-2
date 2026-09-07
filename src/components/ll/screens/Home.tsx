@@ -9,6 +9,7 @@ import ThemeContext from '@/contexts/ThemeContext';
 import useScreenState from '@/hooks/useScreenState';
 import CalendarIcon from '@/icons/CalendarIcon';
 import ClockIcon from '@/icons/ClockIcon';
+import DayIcon from '@/icons/DayIcon';
 import DropIcon from '@/icons/DropIcon';
 import LightningIcon from '@/icons/LightningIcon';
 import kvdb from '@/kvdb';
@@ -19,6 +20,7 @@ import NextLLTab from './Home/NextLL';
 import SettingsButton from './Home/SettingsButton';
 import TimesGuide from './Home/TimesGuide';
 import Plans from './Plans';
+import Today from './Today';
 
 const AUTO_REFRESH_MIN_MS = 60_000;
 export const HOME_TAB_KEY = 'autoll2.tab';
@@ -28,6 +30,11 @@ export interface HomeTabProps {
 }
 
 const tabs = [
+  {
+    name: 'Today' as const,
+    icon: <DayIcon />,
+    component: Today,
+  },
   {
     name: 'LL' as const,
     icon: <LightningIcon />,
@@ -88,7 +95,7 @@ const Home = Object.assign(
       const tabName = kvdb.get(HOME_TAB_KEY);
       return tabs.find(t => t.name === tabName)
         ? (tabName as (typeof tabs)[0]['name'])
-        : 'LL';
+        : 'Today';
     },
   }
 );

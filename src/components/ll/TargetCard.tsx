@@ -4,39 +4,14 @@ import { Experience } from '@/api/ll';
 import { describeMode } from '@/autopilot/describe';
 import { WatchTarget } from '@/autopilot/watchlist';
 import Button from '@/components/Button';
-import { Time } from '@/components/Time';
 import Toggle from '@/components/Toggle';
+import TargetWindow from '@/components/ll/TargetWindow';
 import AutopilotContext from '@/contexts/AutopilotContext';
 import { ParkTime } from '@/datetime';
 
 const DOT = <span aria-hidden> · </span>;
 
 const bound = (time?: ParkTime) => (time ? String(time).slice(0, 5) : '');
-
-function Window({ after, before }: { after?: ParkTime; before?: ParkTime }) {
-  if (after && before) {
-    return (
-      <>
-        <Time time={after} /> to <Time time={before} />
-      </>
-    );
-  }
-  if (after) {
-    return (
-      <>
-        from <Time time={after} />
-      </>
-    );
-  }
-  if (before) {
-    return (
-      <>
-        by <Time time={before} />
-      </>
-    );
-  }
-  return null;
-}
 
 /**
  * One watched attraction: a line that says what will happen, and the controls
@@ -105,7 +80,7 @@ export default function TargetCard({
             {(t.after || t.before) && (
               <>
                 {DOT}
-                <Window after={t.after} before={t.before} />
+                <TargetWindow after={t.after} before={t.before} />
               </>
             )}
             {typeof t.rank === 'number' && (

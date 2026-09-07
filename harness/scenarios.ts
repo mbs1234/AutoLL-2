@@ -41,6 +41,8 @@ export interface Scenario {
   autopilot?: Partial<AutopilotState>;
   /** A screen to open once plans have loaded. */
   screen?: ScreenName;
+  /** The Home tab to land on; Today unless a scenario is about another. */
+  tab?: 'Today' | 'LL' | 'Times' | 'Plans' | 'NextLL';
 }
 
 const nameOf = (id: string) => wdw.experience(id).name;
@@ -75,7 +77,7 @@ function dayPlan(date = parkDate()): WatchTarget[] {
 /** Magic Kingdom, the LL tab, and a party of three, for every scenario. */
 function seedCommon() {
   kvdb.setDaily(PARK_KEY, mk.id);
-  kvdb.set(HOME_TAB_KEY, 'LL');
+  kvdb.set(HOME_TAB_KEY, 'Today');
   kvdb.set(PARTY_IDS_KEY, ['mickey', 'minnie', 'pluto']);
 }
 
@@ -141,9 +143,29 @@ export const SCENARIOS: Scenario[] = [
     id: 'off',
     title: 'Off, nothing watched',
     blurb:
-      'The tipboard, two held Lightning Lanes and lunch. Autopilot is off with an empty list. The real engine runs against the fakes.',
+      'Today with two held Lightning Lanes, lunch and an empty plan; the LL tab has the tipboard. The real engine runs against the fakes.',
     script: DEFAULT_SCRIPT,
     seed: seedCommon,
+  },
+  {
+    id: 'tipboard',
+    title: 'The LL tab',
+    blurb: 'The tipboard as the LL tab shows it, with two passes booked.',
+    script: DEFAULT_SCRIPT,
+    seed: seedCommon,
+    tab: 'LL',
+  },
+  {
+    id: 'configure',
+    title: 'Configure, three targets',
+    blurb:
+      'The setup screen: safeguards, a card per watched attraction, and the list to add from.',
+    script: DEFAULT_SCRIPT,
+    seed: () => {
+      seedCommon();
+      saveWatchList(dayPlan());
+    },
+    screen: 'configure',
   },
   {
     id: 'live',
@@ -155,7 +177,6 @@ export const SCENARIOS: Scenario[] = [
       seedCommon();
       saveWatchList(dayPlan());
     },
-    screen: 'autopilot',
   },
   {
     id: 'running',
@@ -165,7 +186,6 @@ export const SCENARIOS: Scenario[] = [
     script: DEFAULT_SCRIPT,
     seed: seedCommon,
     autopilot: running,
-    screen: 'autopilot',
   },
   {
     id: 'stopped',
@@ -182,7 +202,6 @@ export const SCENARIOS: Scenario[] = [
         lastError: 'Network request failed (no response experiences)',
       },
     },
-    screen: 'autopilot',
   },
   {
     id: 'budget-gone',
@@ -196,7 +215,6 @@ export const SCENARIOS: Scenario[] = [
       bookingsRemaining: 0,
       bookedCount: 3,
     },
-    screen: 'autopilot',
   },
   {
     id: 'refused',
@@ -213,7 +231,6 @@ export const SCENARIOS: Scenario[] = [
         offer: { count: 4, since: inMinutes(-2) },
       },
     },
-    screen: 'autopilot',
   },
   {
     id: 'dry-run',
@@ -226,7 +243,6 @@ export const SCENARIOS: Scenario[] = [
       saveWatchList(dayPlan());
       saveSettings({ ...DEFAULT_SETTINGS, dryRun: true });
     },
-    screen: 'autopilot',
   },
   {
     id: 'unknown-id',
@@ -234,7 +250,6 @@ export const SCENARIOS: Scenario[] = [
     blurb: 'The tipboard lists an id the data file has never heard of.',
     script: { ...DEFAULT_SCRIPT, unknownId: true },
     seed: seedCommon,
-    screen: 'autopilot',
   },
   {
     id: 'pretrip',
@@ -248,7 +263,6 @@ export const SCENARIOS: Scenario[] = [
       kvdb.setDaily(BOOKING_DATE_KEY, date);
       saveWatchList(dayPlan(date));
     },
-    screen: 'autopilot',
   },
   {
     id: 'plancheck',
@@ -283,8 +297,8 @@ export const SCENARIOS: Scenario[] = [
     screen: 'plancheck',
   },
   {
-    id: 'daysummary',
-    title: 'Day summary and timeline',
+    id: 'timeline',
+    title: 'Timeline',
     blurb:
       'Two held passes and lunch beside three windows, one crossing lunch.',
     script: DEFAULT_SCRIPT,
@@ -292,7 +306,16 @@ export const SCENARIOS: Scenario[] = [
       seedCommon();
       saveWatchList(dayPlan());
     },
-    screen: 'daysummary',
+    screen: 'timeline',
+  },
+  {
+    id: 'activity',
+    title: 'Activity (static)',
+    blurb: 'The log, the skip counts and a learned drop, on their own screen.',
+    script: DEFAULT_SCRIPT,
+    seed: seedCommon,
+    autopilot: running,
+    screen: 'activity',
   },
   {
     id: 'search-earlier',

@@ -27,6 +27,8 @@ describe('Home', () => {
   });
 
   it('shows LL home screen', async () => {
+    // Today is the default tab now; this flow is about the LL tab.
+    kvdb.set(HOME_TAB_KEY, 'LL');
     renderResort(<Merlock />);
     await loading();
 
@@ -63,7 +65,7 @@ describe('Home', () => {
 
 describe('Home.currentTabName()', () => {
   it('returns default tab', () => {
-    expect(Home.getSavedTabName()).toBe('LL');
+    expect(Home.getSavedTabName()).toBe('Today');
     kvdb.set(HOME_TAB_KEY, 'Times');
     expect(Home.getSavedTabName()).toBe('Times');
   });

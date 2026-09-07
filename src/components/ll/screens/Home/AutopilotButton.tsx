@@ -1,21 +1,21 @@
 import { use } from 'react';
 
 import Button from '@/components/Button';
+import { AUTOPILOT } from '@/components/ll/AutopilotStatus';
 import AutopilotContext from '@/contexts/AutopilotContext';
-import NavContext from '@/contexts/NavContext';
+import TabsContext from '@/contexts/TabContext';
 import ClockIcon from '@/icons/ClockIcon';
 
-import Autopilot, { AUTOPILOT } from '../Autopilot';
-
 /**
- * Opens the Autopilot screen, and shows at a glance whether it is running.
+ * Shows at a glance whether Autopilot is running, and opens the Today tab,
+ * where the switch is.
  *
  * Deliberately not a toggle. Enabling autopilot is a setup step -- choose
  * attractions, grant notification permission -- and a mis-tap here silently
  * starting or stopping background polling would be worse than one extra tap.
  */
 export default function AutopilotButton() {
-  const { goTo } = use(NavContext);
+  const { changeTab } = use(TabsContext);
   const { enabled, status, targetsHere, dryRun } = use(AutopilotContext);
   const running = enabled && status.mode !== 'stopped';
   const attention = enabled && status.mode === 'stopped';
@@ -29,7 +29,7 @@ export default function AutopilotButton() {
             ? `${AUTOPILOT} stopped after errors`
             : `${AUTOPILOT} off`
       }
-      onClick={() => goTo(<Autopilot />)}
+      onClick={() => changeTab('Today')}
       // Yellow while rehearsing, so a forgotten dry run is visible from the
       // header rather than discovered when nothing gets booked.
       color={
@@ -43,7 +43,7 @@ export default function AutopilotButton() {
       }
     >
       <ClockIcon />
-      {/* The same count the Autopilot screen shows, so the badge and the
+      {/* The same count the Configure screen shows, so the badge and the
           heading can never disagree. */}
       {running && targetsHere.length > 0 && (
         <span className="ml-1 text-xs font-semibold">{targetsHere.length}</span>

@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
+import { HOME_TAB_KEY } from '@/components/ll/screens/Home';
 import kvdb from '@/kvdb';
 
 import HarnessApp from './HarnessApp';
@@ -27,6 +28,7 @@ const frame = FRAMES[frameName];
 
 if (params.get('keep') !== '1') kvdb.clear();
 scenario.seed?.();
+if (scenario.tab) kvdb.set(HOME_TAB_KEY, scenario.tab);
 
 const world = new World(scenario.script);
 const clients = createFakeClients(world);
