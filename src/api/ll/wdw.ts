@@ -247,15 +247,22 @@ export class LLClientWDW extends LLClient {
     return exps;
   }
 
-  async guests(experience?: { id: string }, date?: string): Promise<Guests> {
+  async guests(
+    experience?: { id: string },
+    date?: string,
+    park?: { id: string }
+  ): Promise<Guests> {
     const { data } = await this.request<GuestsResponse>({
       path: '/ea-vas/planning/api/v1/experiences/guest/guests',
       data: {
         date: date ?? DateTime.now().date,
         facilityId: experience?.id ?? null,
+        // An attraction names its own park. Failing that, the caller's, and
+        // only then the resort's first -- which used to be the sole fallback
+        // and meant Magic Kingdom for every park-less check at WDW.
         parkId: experience
           ? this.resort.experience(experience.id).park.id
-          : this.resort.parks[0]!.id,
+          : (park?.id ?? this.resort.parks[0]!.id),
       },
       sensorData: true,
     });

@@ -1,9 +1,10 @@
-import { use, useState } from 'react';
+import { use, useEffect, useMemo, useState } from 'react';
 
 import { Guests } from '@/api/ll';
 import { PlanCheckLevel, checkPlan } from '@/autopilot/plancheck';
 import Button from '@/components/Button';
 import Screen from '@/components/Screen';
+import { Time } from '@/components/Time';
 import AutopilotContext from '@/contexts/AutopilotContext';
 import BookingDateContext from '@/contexts/BookingDateContext';
 import ClientsContext from '@/contexts/ClientsContext';
@@ -12,6 +13,7 @@ import ParkContext from '@/contexts/ParkContext';
 import PlansContext from '@/contexts/PlansContext';
 import { formatDate } from '@/datetime';
 import useDataLoader from '@/hooks/useDataLoader';
+import { RateLimitExceeded } from '@/ratelimit';
 
 const STYLE: Record<PlanCheckLevel, string> = {
   blocker: 'bg-red-100 text-red-900',
@@ -33,29 +35,87 @@ export default function PlanCheck() {
   const { experiences } = use(ExperiencesContext);
   const { plans } = use(PlansContext);
   const { loadData, loaderElem } = useDataLoader();
-  const { targets, bookingsRemaining, requireWholeParty, avoidOverlaps } =
-    use(AutopilotContext);
-  const items = checkPlan({
+  const {
     targets,
-    parkId: park.id,
-    date: bookingDate,
-    experiences,
-    plans,
     bookingsRemaining,
     requireWholeParty,
     avoidOverlaps,
-  });
+    dryRun,
+    passkeyStatus,
+  } = use(AutopilotContext);
+  // Recomputed only when a fact it reads changes, rather than on every render
+  // -- this screen stays mounted while Autopilot polls behind it.
+  const items = useMemo(
+    () =>
+      checkPlan({
+        targets,
+        parkId: park.id,
+        date: bookingDate,
+        experiences,
+        plans,
+        bookingsRemaining,
+        requireWholeParty,
+        avoidOverlaps,
+        dryRun,
+        // Only a spent entitlement lifts the limit, which is what the
+        // provider reports as `unlocked`. A merely configured passkey does
+        // not, and treating it as if it did was the same mistake as reading a
+        // reservation as evidence of a redemption.
+        tierLimitLifted: passkeyStatus === 'unlocked',
+      }),
+    [
+      targets,
+      park.id,
+      bookingDate,
+      experiences,
+      plans,
+      bookingsRemaining,
+      requireWholeParty,
+      avoidOverlaps,
+      dryRun,
+      passkeyStatus,
+    ]
+  );
   const blockers = items.filter(item => item.level === 'blocker').length;
+
   const [party, setParty] = useState<Guests>();
-  const partyIneligible =
+  const [checking, setChecking] = useState(false);
+  // A party answer is about one park and one date. This screen stays mounted
+  // in the nav stack, so without this it could outlive both.
+  useEffect(() => setParty(undefined), [park.id, bookingDate]);
+
+  const ineligible =
     party?.ineligible.filter(g => g.ineligibleReason !== 'NOT_IN_PARTY') ?? [];
+  // Nobody eligible is not the same answer as everybody eligible, and the
+  // saved party can be absent from the response entirely -- stale ids from an
+  // earlier trip come back stamped NOT_IN_PARTY and filtered out above, which
+  // used to leave an empty list reading as a clean bill of health.
+  const eligibleCount = party?.eligible.length ?? 0;
+  const allEligible = !!party && eligibleCount > 0 && !ineligible.length;
+  const nobodyEligible = !!party && eligibleCount === 0;
 
   function checkParty() {
-    loadData(async () => {
-      // This asks only for current party eligibility. It never creates an
-      // offer and it cannot spend an entitlement.
-      setParty(await ll.guests(undefined, bookingDate));
-    });
+    if (checking) return;
+    setChecking(true);
+    loadData(
+      async () => {
+        // This asks only for current party eligibility, scoped to the park
+        // and date on screen. It never creates an offer and it cannot spend
+        // an entitlement.
+        setParty(await ll.guests(undefined, bookingDate, park));
+      },
+      {
+        // Keyed by error name, which `useDataLoader` already supports. The
+        // limiter is shared with the poller and with every other tap in the
+        // app, and it throws rather than throttling -- left unmapped this
+        // surfaced as "Unknown error occurred", which says nothing about the
+        // one thing the user can act on.
+        messages: {
+          [RateLimitExceeded.name]:
+            'Too many requests just now. Wait a few seconds and try again.',
+        },
+      }
+    ).finally(() => setChecking(false));
   }
 
   return (
@@ -74,10 +134,10 @@ export default function PlanCheck() {
           : 'Plan review'}
       </h3>
       <ul className="space-y-2">
-        {items.map((item, index) => (
+        {items.map(item => (
           <li
             className={`rounded-sm p-2 text-sm ${STYLE[item.level]}`}
-            key={`${item.level}-${index}`}
+            key={item.text}
           >
             <span className="font-semibold">{LABEL[item.level]}:</span>{' '}
             {item.text}
@@ -86,28 +146,48 @@ export default function PlanCheck() {
       </ul>
       <h3>Current party</h3>
       <p className="text-sm text-gray-600">
-        Check whether the guests AutoLL currently sees are eligible in general.
-        Attraction-specific eligibility, inventory, and the actual offered time
-        can change and remain protected by the final action checks.
+        Check whether the guests AutoLL-2 currently sees are eligible in
+        general, at {park.name} on this date. Attraction-specific eligibility,
+        inventory, and the actual offered time can change and remain protected
+        by the final action checks.
       </p>
-      <Button type="small" className="mt-2" onClick={checkParty}>
-        Check current party
+      <Button
+        type="small"
+        className="mt-2"
+        disabled={checking}
+        onClick={checkParty}
+      >
+        {checking ? 'Checking…' : 'Check current party'}
       </Button>
-      {party && partyIneligible.length === 0 && (
+      {allEligible && (
         <p className="mt-2 rounded-sm bg-green-100 p-2 text-sm text-green-900">
-          All guests in the current party are generally eligible.
+          All {eligibleCount} guest{eligibleCount === 1 ? '' : 's'} in the
+          current party are generally eligible.
         </p>
       )}
-      {partyIneligible.length > 0 && (
+      {nobodyEligible && (
+        <p className="mt-2 rounded-sm bg-red-100 p-2 text-sm text-red-900">
+          No guests came back eligible. Check the party selection on the LL tab
+          — the saved party may no longer be on this account.
+        </p>
+      )}
+      {ineligible.length > 0 && (
         <div className="mt-2 rounded-sm bg-amber-100 p-2 text-sm text-amber-900">
           <p className="font-semibold">
-            {partyIneligible.length} party member
-            {partyIneligible.length === 1 ? '' : 's'} currently ineligible.
+            {ineligible.length} party member
+            {ineligible.length === 1 ? '' : 's'} currently ineligible.
           </p>
           <ul className="mt-1 list-disc pl-5">
-            {partyIneligible.map(guest => (
+            {ineligible.map(guest => (
               <li key={guest.id}>
-                {guest.name} &mdash; {guest.ineligibleReason ?? 'ineligible'}
+                {guest.name} &mdash;{' '}
+                {guest.eligibleAfter ? (
+                  <>
+                    eligible from <Time time={guest.eligibleAfter} />
+                  </>
+                ) : (
+                  (guest.ineligibleReason ?? 'ineligible')
+                )}
               </li>
             ))}
           </ul>

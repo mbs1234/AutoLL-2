@@ -379,7 +379,19 @@ export abstract class LLClient extends ApiClient {
     return this.tracker.experienced(experience);
   }
 
-  abstract guests(experience?: { id: string }, date?: string): Promise<Guests>;
+  abstract guests(
+    experience?: { id: string },
+    date?: string,
+    /**
+     * Which park to ask about when no attraction is given.
+     *
+     * Only reachable that way: with an attraction the park is looked up from
+     * it. Without one the WDW client used to fall back to the resort's first
+     * park, so a general eligibility check for Animal Kingdom silently asked
+     * about Magic Kingdom.
+     */
+    park?: { id: string }
+  ): Promise<Guests>;
 
   abstract offer<B extends Offer['booking']>(
     experience: OfferExperience,
