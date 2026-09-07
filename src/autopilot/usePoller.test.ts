@@ -106,6 +106,54 @@ describe('usePoller', () => {
     expect(onTick).toHaveBeenCalledTimes(callsAtStop);
   });
 
+  /**
+   * Local cycle timing.
+   *
+   * The point of the numbers is telling a slow network or device apart from
+   * deliberate backoff, so a failure must not be averaged in: the cheapest
+   * failure here is `RateLimit.enforce()` throwing before any fetch, which
+   * would drag the average down and make it read healthiest exactly when
+   * nothing is getting through.
+   */
+  describe('cycle timing', () => {
+    it('reports a duration for a successful cycle', async () => {
+      const onTick = jest.fn(async () => undefined);
+      const { result } = renderHook(() => usePoller({ enabled: true, onTick }));
+      await waitFor(() => expect(result.current.lastCycleMs).toBeDefined());
+      expect(result.current.averageCycleMs).toBe(result.current.lastCycleMs);
+    });
+
+    it('leaves the timing undefined until a cycle has succeeded', async () => {
+      const onTick = jest.fn(async () => {
+        throw new Error('nope');
+      });
+      const { result } = renderHook(() => usePoller({ enabled: true, onTick }));
+      await waitFor(() => expect(result.current.consecutiveFailures).toBe(1));
+      expect(result.current.lastCycleMs).toBeUndefined();
+      expect(result.current.averageCycleMs).toBeUndefined();
+    });
+
+    it('holds the last good numbers through a failure', async () => {
+      let fail = false;
+      const onTick = jest.fn(async () => {
+        if (fail) throw new Error('nope');
+      });
+      const { result } = renderHook(() => usePoller({ enabled: true, onTick }));
+      await waitFor(() => expect(result.current.lastCycleMs).toBeDefined());
+      const good = result.current.lastCycleMs;
+      const average = result.current.averageCycleMs;
+      fail = true;
+      await advancePastNextTick();
+      await waitFor(() =>
+        expect(result.current.consecutiveFailures).toBeGreaterThan(0)
+      );
+      // Unchanged, rather than replaced by an instant failure or blanked: the
+      // status area is already saying that checks are failing.
+      expect(result.current.lastCycleMs).toBe(good);
+      expect(result.current.averageCycleMs).toBe(average);
+    });
+  });
+
   it('stops ticking after unmount', async () => {
     const onTick = jest.fn(async () => undefined);
     const { unmount } = renderHook(() => usePoller({ enabled: true, onTick }));

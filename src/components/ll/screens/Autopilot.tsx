@@ -109,12 +109,18 @@ function StatusRow({
             )}
         </div>
       )}
-      {status.lastPollMs !== undefined && (
-        <div className="text-gray-500">
-          <span className="font-semibold">Local timing:</span> last check{' '}
-          {status.lastPollMs} ms, average {status.averagePollMs} ms
-        </div>
-      )}
+      {/* Only while it is running: stopped or off, these are facts about
+          earlier rather than a reason for what is happening now. "Cycle"
+          because it times the whole tick -- availability, plans, eligibility
+          and any booking attempt -- not a single request. */}
+      {status.mode !== 'off' &&
+        status.mode !== 'stopped' &&
+        status.lastCycleMs !== undefined && (
+          <div className="text-gray-500">
+            <span className="font-semibold">Local timing:</span> last cycle{' '}
+            {status.lastCycleMs} ms, average {status.averageCycleMs} ms
+          </div>
+        )}
       {status.refillWindow && !status.target && (
         <div>
           <span className="font-semibold">Refill window:</span>{' '}

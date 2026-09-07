@@ -26,9 +26,23 @@ export interface PollerStatus {
   refillWindow?: RefillWindow;
   /** Ticks attempted since the loop started; useful for display and tests. */
   polls: number;
-  /** Local wall-clock timing; never sent anywhere or used to change cadence. */
-  lastPollMs?: number;
-  averagePollMs?: number;
+  /**
+   * How long the last *successful* cycle took, and the average of those.
+   *
+   * Local wall-clock only: never sent anywhere, and never read back into the
+   * cadence. It brackets the whole tick rather than one request -- fetching
+   * availability, plans on the tenth tick, per-target eligibility, and any
+   * booking attempt -- so a tick that acted is legitimately slower than one
+   * that only looked. That is what makes it useful for telling a slow network
+   * apart from deliberate backoff, and why the label says "cycle".
+   *
+   * Failed cycles are excluded from both. The cheapest failure here is also
+   * the most consequential -- `RateLimit.enforce()` throws before any fetch,
+   * in about no time at all -- so averaging failures in made the number read
+   * *healthiest* exactly when nothing was getting through.
+   */
+  lastCycleMs?: number;
+  averageCycleMs?: number;
 }
 
 export interface PollerOptions {
@@ -111,7 +125,9 @@ export default function usePoller({
     let timer: ReturnType<typeof setTimeout> | undefined;
     let failures = 0;
     let polls = 0;
-    let totalPollMs = 0;
+    let cycles = 0;
+    let totalCycleMs = 0;
+    let lastGoodMs: number | undefined;
 
     const run = async () => {
       let failed = false;
@@ -127,8 +143,24 @@ export default function usePoller({
         console.error(error);
       }
       ++polls;
-      const lastPollMs = Math.round(performance.now() - startedAt);
-      totalPollMs += lastPollMs;
+      let timing: { lastCycleMs?: number; averageCycleMs?: number } = {};
+      if (!failed) {
+        const lastCycleMs = Math.round(performance.now() - startedAt);
+        ++cycles;
+        totalCycleMs += lastCycleMs;
+        timing = {
+          lastCycleMs,
+          averageCycleMs: Math.round(totalCycleMs / cycles),
+        };
+      } else if (cycles > 0) {
+        // Keep the last good numbers rather than blanking the row mid-backoff:
+        // the status area is already saying that checks are failing.
+        timing = {
+          lastCycleMs: lastGoodMs,
+          averageCycleMs: Math.round(totalCycleMs / cycles),
+        };
+      }
+      if (timing.lastCycleMs !== undefined) lastGoodMs = timing.lastCycleMs;
       if (cancelled) return;
 
       if (failures >= MAX_CONSECUTIVE_FAILURES) {
@@ -139,8 +171,7 @@ export default function usePoller({
           consecutiveFailures: failures,
           lastError,
           polls,
-          lastPollMs,
-          averagePollMs: Math.round(totalPollMs / polls),
+          ...timing,
         });
         return;
       }
@@ -169,8 +200,7 @@ export default function usePoller({
         secondsToTarget: next.secondsToTarget,
         refillWindow: next.refillWindow,
         polls,
-        lastPollMs,
-        averagePollMs: Math.round(totalPollMs / polls),
+        ...timing,
       });
 
       timer = setTimeout(
