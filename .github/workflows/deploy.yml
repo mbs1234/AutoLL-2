@@ -180,13 +180,27 @@ jobs:
           grep -rn 'joelface' dist || echo "none"
 
       # A Pages deployment has no release attachment, so leave a small,
-      # inspectable record in the published artifact itself. This covers every
-      # payload file (including chunks and the runtime module) and ties it to
-      # the source revision that produced it. The manifest is deliberately
-      # generated only after every overlay and URL rewrite has completed.
-      - name: Create and verify release manifest
+      # inspectable record in the published artifact itself. It covers every
+      # payload file, including chunks and the runtime module, and is
+      # generated only after every overlay and URL rewrite has completed, so
+      # it describes what is actually published.
+      #
+      # It records all three source revisions, because `dist` is assembled
+      # from three branches: the bundle from this one, the installer pages
+      # from `goofy`, and the runtime module from `gh-pages`. The commit that
+      # triggered the run identifies only the first, so a build reproduced
+      # from `sourceRevision` alone would not match what shipped.
+      #
+      # There is deliberately no `sha256sum --check` here. Re-reading the
+      # files in the same step that just hashed them re-derives the same
+      # answer and proves nothing; the manifest is a record for afterwards,
+      # and what is worth failing the deploy over is a payload file MISSING,
+      # which is checked below.
+      - name: Create release manifest
         run: |
           set -euo pipefail
+          goofy_rev=$(git -C goofy-static rev-parse HEAD)
+          base_rev=$(git -C base-static rev-parse HEAD)
           (
             cd dist
             find . -type f \
@@ -196,15 +210,21 @@ jobs:
               | LC_ALL=C sort \
               | while IFS= read -r file; do sha256sum "$file"; done \
               > autoll2-files.sha256
-            sha256sum --check autoll2-files.sha256
-            for file in bg1.js sensor-data.js index.html autoloader.user.js; do
-              grep -Fq "  $file" autoll2-files.sha256 || {
+            # Every file an install path needs by name. bg1.css and
+            # responder.html were missing from this list, and they are the two
+            # whose absence breaks the app quietly rather than loudly -- an
+            # unstyled page, and a sign-in that never completes.
+            for file in bg1.js bg1.css responder.html sensor-data.js \
+                        index.html index.css autoloader.user.js; do
+              # Anchored to end of line so a `.map` or a same-named file in a
+              # subdirectory cannot satisfy the check for the real one.
+              grep -Eq "  ${file//./\\.}$" autoll2-files.sha256 || {
                 echo "::error::$file is absent from the release manifest"
                 exit 1
               }
             done
-            printf '{\n  "application": "AutoLL-2",\n  "sourceRevision": "%s",\n  "fileManifest": "autoll2-files.sha256"\n}\n' \
-              "$GITHUB_SHA" > autoll2-release.json
+            printf '{\n  "application": "AutoLL-2",\n  "sourceRevision": "%s",\n  "installerRevision": "%s",\n  "runtimeModuleRevision": "%s",\n  "fileManifest": "autoll2-files.sha256"\n}\n' \
+              "$GITHUB_SHA" "$goofy_rev" "$base_rev" > autoll2-release.json
           )
 
       - name: Show what will be deployed

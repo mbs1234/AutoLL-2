@@ -1,4 +1,21 @@
-name: Data freshness audit
+name: Curated data invariants
+
+# The curated facility data in `src/api/data/wdw.ts` is edited by hand, and the
+# invariants over it -- ids unique, sections matching the park they claim,
+# retirement records consistent -- are checked by two suites that already run
+# on every push. This re-runs just those two, weekly, so a hand edit made and
+# left unpushed for a while is not the only trigger.
+#
+# It cannot tell you Disney has changed an attraction id: both suites are
+# offline by design (`resortData.test.ts` reads the committed data file,
+# `llClosedExperiences.test.ts` mocks `@/fetch`), so a re-themed ride keeps
+# them green. What surfaces a change like that is the unknown-attraction notice
+# and the live tier reporting in Autopilot, from real tipboard responses.
+#
+# GitHub disables a `schedule` trigger after 60 days without repository
+# activity, notifying the owner by email. On a personal fork that is a normal
+# gap, so treat this as a convenience rather than a guarantee and use
+# `workflow_dispatch` when the answer actually matters.
 
 on:
   schedule:
@@ -8,9 +25,14 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: curated-data-invariants
+  cancel-in-progress: true
+
 jobs:
   audit:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -18,5 +40,8 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - name: Validate curated facility data and ID retirement records
-        run: npx jest src/api/resortData.test.ts src/api/llClosedExperiences.test.ts --runInBand
+      # TZ pinned as every package.json script does: a suite that reads dates
+      # must not depend on the runner's zone, and the runner's zone is not
+      # something this repo controls.
+      - name: Check curated facility data and ID retirement records
+        run: TZ=UTC npx jest src/api/resortData.test.ts src/api/llClosedExperiences.test.ts --runInBand
