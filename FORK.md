@@ -203,18 +203,20 @@ AutoLL must leave this removal behind.
 
 ## Local toolchain
 
-**There is none.** No `node`, `npm` or `npx` on the machine this is developed
-from, and no `/opt/homebrew`. CI is the only place tests, lint and types are
-ever run, which is why `check.yml` runs every step even after one fails — a
-round trip is the whole feedback loop.
+Node 22 (`v22.23.2`, from the official darwin tarball rather than Homebrew)
+has been on the development machine since 2026-09-07, so `npm run checkall`,
+`npm test` and `npm run build` all run locally. CI still runs every step even
+after one fails, so a single push reports everything at once — but it is no
+longer the only feedback loop.
 
-To verify a change before it lands anyway: push it to a branch and read the
-Check run, and where a test is meant to catch something, push a second branch
-with the fix reverted and confirm the test goes red on it. `verify/full` and
-`verify/mutation` were used exactly that way and deleted afterwards.
+To prove a test bites, the habit is unchanged: a `verify/*` branch to show
+the fix green, and a mutation branch with the fix reverted to show the test
+red. `verify/full` and `verify/mutation` were used exactly that way and
+deleted afterwards.
 
-(An earlier version of this section claimed Node was installed via Homebrew.
-It was not, and nothing here has ever been run locally.)
+(Earlier versions of this section said Node came from Homebrew, which was
+never true, and then that there was no local toolchain at all, which was true
+until 2026-09-07.)
 
 ## Autopilot
 
