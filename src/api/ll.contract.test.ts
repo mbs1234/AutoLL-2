@@ -36,6 +36,23 @@ function makeClient() {
   return { client, request };
 }
 
+/** A held Multi Pass on another attraction, for the modify path. */
+function held() {
+  return {
+    type: 'LL',
+    subtype: 'MP',
+    id: 'held-1',
+    facilityId: '80010208',
+    name: 'Haunted Mansion',
+    experience: wdw.experience('80010208'),
+    start: new DateTime(DATE, new ParkTime(15)),
+    end: new DateTime(DATE, new ParkTime(16)),
+    cancellable: true,
+    modifiable: true,
+    guests: [{ ...guest, entitlementId: 'ent-1' }],
+  } as unknown as NonNullable<Offer['booking']>;
+}
+
 function offer(): Offer {
   return {
     id: 'offer-1',
@@ -64,11 +81,47 @@ describe('WDW Lightning Lane request contracts', () => {
       path: '/ea-vas/planning/api/v1/experiences/guest/guests',
       data: {
         date: DATE,
-        facilityId: experience.id,
-        parkId: experience.park.id,
+        facilityId: '80010190',
+        // Literal, because the production value comes from a *re-lookup* --
+        // `this.resort.experience(id).park.id` -- not from the argument. The
+        // provider calls this with `{ id }` alone, so the re-lookup is what
+        // supplies the park at all, and asserting `experience.park.id` here
+        // compared the same object to itself.
+        parkId: '80007944',
       },
       sensorData: true,
     });
+  });
+
+  // The branch the Plan Check screen takes, and the one nothing asserted: no
+  // attraction, so no park to look up. It used to fall back to the resort's
+  // first park regardless of what the caller was asking about.
+  it('asks about the given park when no attraction is named', async () => {
+    const { client, request } = makeClient();
+    request.mockResolvedValue({
+      data: { guests: [apiGuest()], ineligibleGuests: [] },
+    });
+
+    await client.guests(undefined, DATE, { id: '80007838' });
+    expect(request).toHaveBeenCalledWith({
+      path: '/ea-vas/planning/api/v1/experiences/guest/guests',
+      data: { date: DATE, facilityId: null, parkId: '80007838' },
+      sensorData: true,
+    });
+  });
+
+  it('falls back to the resort default park with neither', async () => {
+    const { client, request } = makeClient();
+    request.mockResolvedValue({
+      data: { guests: [apiGuest()], ineligibleGuests: [] },
+    });
+
+    await client.guests(undefined, DATE);
+    expect(request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ facilityId: null, parkId: '80007944' }),
+      })
+    );
   });
 
   it('generates a booking offer with the selected party and return target', async () => {
@@ -94,18 +147,25 @@ describe('WDW Lightning Lane request contracts', () => {
       },
     });
 
-    await expect(
-      client.offer(experience, [guest], { date: DATE })
-    ).resolves.toEqual(
-      expect.objectContaining({ id: 'offer-1', offerSetId: 'set-1' })
-    );
+    const result = await client.offer(experience, [guest], { date: DATE });
+    // The parsed times, not only the ids: asserting ids alone let start and
+    // end be swapped in the parser with every test still green.
+    expect(result.id).toBe('offer-1');
+    expect(result.offerSetId).toBe('set-1');
+    expect(`${result.start.time}`).toBe('10:00:00');
+    expect(`${result.end.time}`).toBe('11:00:00');
+    expect(result.start.date).toBe(DATE);
+    // Exactly one request: the client re-times an offer that came back more
+    // than ten minutes later than asked for, and nothing pinned that it does
+    // not fire when the offer matches.
+    expect(request).toHaveBeenCalledTimes(1);
     expect(request).toHaveBeenCalledWith({
       path: '/ea-vas/planning/api/v1/experiences/offerset/generate',
       data: {
         date: DATE,
-        parkId: experience.park.id,
+        parkId: '80007944',
         guestIds: [guest.id],
-        targetedTime: experience.flex?.nextAvailableTime,
+        targetedTime: new ParkTime(10),
         ignoredBookedExperienceIds: null,
         experienceIds: [experience.id],
       },
@@ -113,8 +173,82 @@ describe('WDW Lightning Lane request contracts', () => {
     });
   });
 
+  // The fallback the Change-return-time flow actually sends, which the
+  // always-populated fixture hid.
+  it('targets 08:00 when the attraction advertises no next time', async () => {
+    const { client, request } = makeClient();
+    request.mockResolvedValue({
+      data: {
+        itinerary: { items: [] },
+        party: { guests: [], ineligibleGuests: [] },
+      },
+    });
+
+    await expect(
+      client.offer({ ...experience, flex: { available: false } }, [guest], {
+        date: DATE,
+      })
+    ).rejects.toThrow();
+    expect(request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ targetedTime: '08:00:00' }),
+      })
+    );
+  });
+
+  // Three of the six LL request builders were covered and the three harder
+  // ones were not -- including the `/mod` shape every Auto-move and swap uses,
+  // where the two experience ids are easy to transpose.
+  it('generates a modify offer against the booking being moved', async () => {
+    const { client, request } = makeClient();
+    request.mockResolvedValue({
+      data: {
+        itinerary: {
+          items: [
+            {
+              type: 'OFFER_ITEM',
+              facilityId: experience.id,
+              offerSetId: 'set-2',
+              offerId: 'offer-2',
+              offerType: 'FLEX',
+              startDateTime: `${DATE}T10:00:00`,
+              endDateTime: `${DATE}T11:00:00`,
+              startTime: '10:00:00',
+              endTime: '11:00:00',
+            },
+          ],
+        },
+        party: { guests: [apiGuest()], ineligibleGuests: [] },
+      },
+    });
+
+    await client.offer(experience, [guest], { booking: held() });
+    expect(request).toHaveBeenCalledWith({
+      path: '/ea-vas/planning/api/v1/experiences/mod/offerset/generate',
+      data: {
+        date: DATE,
+        parkId: '80007944',
+        guestIds: [guest.id],
+        experienceId: experience.id,
+        originalExperienceId: '80010208',
+        originalEntitlementIds: ['ent-1'],
+        targetedTime: new ParkTime(10),
+        ignoredBookedExperienceIds: null,
+      },
+      sensorData: true,
+    });
+  });
+
   it('commits a confirmed offer with only its eligible guests', async () => {
     const { client, request } = makeClient();
+    // Two guests the client must drop for two different reasons: one is
+    // ineligible, and one has no order details. With a single clean guest
+    // both filters could be deleted and the test stayed green.
+    const ineligible: Guest = { ...guest, id: 'guest-2', name: 'Guest Two' };
+    const noOrder = {
+      id: 'guest-3',
+      name: 'Guest Three',
+    } as unknown as Guest;
     request.mockResolvedValue({
       data: {
         entitlementExperiences: [
@@ -129,12 +263,14 @@ describe('WDW Lightning Lane request contracts', () => {
       },
     });
 
-    await expect(client.book(offer())).resolves.toEqual(
-      expect.objectContaining({
-        facilityId: experience.id,
-        id: 'entitlement-1',
-      })
-    );
+    const booked = await client.book({
+      ...offer(),
+      guests: { eligible: [guest, noOrder], ineligible: [ineligible] },
+    });
+    expect(booked.facilityId).toBe(experience.id);
+    expect(booked.id).toBe('entitlement-1');
+    expect(`${booked.start.time}`).toBe('10:00:00');
+    expect(`${booked.end.time}`).toBe('11:00:00');
     expect(request).toHaveBeenCalledWith({
       path: '/ea-vas/planning/api/v1/experiences/entitlements/book',
       data: {
