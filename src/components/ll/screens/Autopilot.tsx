@@ -109,6 +109,12 @@ function StatusRow({
             )}
         </div>
       )}
+      {status.lastPollMs !== undefined && (
+        <div className="text-gray-500">
+          <span className="font-semibold">Local timing:</span> last check{' '}
+          {status.lastPollMs} ms, average {status.averagePollMs} ms
+        </div>
+      )}
       {status.refillWindow && !status.target && (
         <div>
           <span className="font-semibold">Refill window:</span>{' '}

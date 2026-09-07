@@ -1,0 +1,22 @@
+name: Data freshness audit
+
+on:
+  schedule:
+    - cron: '17 14 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Validate curated facility data and ID retirement records
+        run: npx jest src/api/resortData.test.ts src/api/llClosedExperiences.test.ts --runInBand

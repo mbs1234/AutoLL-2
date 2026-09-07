@@ -188,6 +188,16 @@ Everything deciding an action is scoped to the day being worked on, and three fa
 
 #### Diagnostics
 
+**Local timing** shows the duration of the last Autopilot check and the
+session average. It is measured only in the browser, is never transmitted, and
+does not alter the polling cadence; it helps distinguish a slow network/device
+from deliberate scheduler backoff.
+
+Curated facility IDs and retirement records are also checked weekly by the
+non-mutating **Data freshness audit** workflow. Unknown tipboard IDs and live
+tier disagreements remain visible in Autopilot so a changed attraction can be
+reviewed before it affects a plan.
+
 - **Day summary.** **View day summary** on the Autopilot screen gives one screen for the selected day: every Multi Pass held on that date in any park with its return and grace-scan window, the next Lightning Lane time, the active plan for the loaded park in rank order, and passkey status.
 - **Why nothing was booked.** Skips are counted rather than logged — during a drop they happen every second — and ranked, so the panel reads *"7× not everyone in the party was eligible"*.
 - **Refused requests.** If Disney refuses the booking calls outright, the screen says so and names which call. It waits for three refusals spanning at least a minute, and a single success clears it. This matters because a refusal lands on *eligibility*, one step before an offer exists: without the notice, Autopilot keeps polling, alerting, and learning while silently never acting.

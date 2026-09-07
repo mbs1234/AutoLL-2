@@ -26,6 +26,9 @@ export interface PollerStatus {
   refillWindow?: RefillWindow;
   /** Ticks attempted since the loop started; useful for display and tests. */
   polls: number;
+  /** Local wall-clock timing; never sent anywhere or used to change cadence. */
+  lastPollMs?: number;
+  averagePollMs?: number;
 }
 
 export interface PollerOptions {
@@ -108,10 +111,12 @@ export default function usePoller({
     let timer: ReturnType<typeof setTimeout> | undefined;
     let failures = 0;
     let polls = 0;
+    let totalPollMs = 0;
 
     const run = async () => {
       let failed = false;
       let lastError: string | undefined;
+      const startedAt = performance.now();
       try {
         await onTickRef.current(() => cancelled);
         failures = 0;
@@ -122,6 +127,8 @@ export default function usePoller({
         console.error(error);
       }
       ++polls;
+      const lastPollMs = Math.round(performance.now() - startedAt);
+      totalPollMs += lastPollMs;
       if (cancelled) return;
 
       if (failures >= MAX_CONSECUTIVE_FAILURES) {
@@ -132,6 +139,8 @@ export default function usePoller({
           consecutiveFailures: failures,
           lastError,
           polls,
+          lastPollMs,
+          averagePollMs: Math.round(totalPollMs / polls),
         });
         return;
       }
@@ -160,6 +169,8 @@ export default function usePoller({
         secondsToTarget: next.secondsToTarget,
         refillWindow: next.refillWindow,
         polls,
+        lastPollMs,
+        averagePollMs: Math.round(totalPollMs / polls),
       });
 
       timer = setTimeout(
