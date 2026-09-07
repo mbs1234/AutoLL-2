@@ -90,6 +90,8 @@ Use **Plans** to review Lightning Lanes and other itinerary items. Autopilot can
 
 Open Autopilot with the clock button on the LL tab. First, star the Multi Pass attractions you want it to watch. Watching alone only checks and alerts; it does not authorize any booking or modification.
 
+Use **Plan check** before turning Autopilot on. It reviews the selected park day without generating offers or making a booking: targets missing from the loaded tipboard, paused or unarmed actions, impossible return windows, action-budget limits, configured overlap risks, and Tier 1 tradeoffs. Its optional **Check current party** button makes one eligibility-only request; availability and attraction-specific eligibility are still rechecked immediately before every action.
+
 For each watched attraction, choose the actions you want. Each is off by default and independent, because the risks differ:
 
 | Control            | What it does                                                                                                                                                                                                                                        |
@@ -202,9 +204,10 @@ Its watch list is stored separately, so a search does not disturb what Autopilot
 
 1. Configure your party and star only one or two attractions.
 2. Set realistic return-time windows.
-3. Turn on **Dry run**.
-4. Keep the page open while you observe the status, alerts, skip reasons, and activity log.
-5. When the behavior matches your expectations, turn Dry run off and enable only the per-attraction actions you actually want.
+3. Use **Plan check** and resolve anything marked “Fix before enabling.”
+4. Turn on **Dry run**.
+5. Keep the page open while you observe the status, alerts, skip reasons, and activity log.
+6. When the behavior matches your expectations, turn Dry run off and enable only the per-attraction actions you actually want.
 
 The **Why nothing was booked** section groups common guard reasons, such as an unavailable party member, an overlap, an exhausted action budget, or a time outside the configured window.
 

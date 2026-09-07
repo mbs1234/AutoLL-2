@@ -28,6 +28,7 @@ import ParkContext from '@/contexts/ParkContext';
 import StarIcon from '@/icons/StarIcon';
 
 import DaySummary from './DaySummary';
+import PlanCheck from './PlanCheck';
 
 export const AUTOPILOT = 'Autopilot';
 
@@ -342,6 +343,13 @@ export default function Autopilot() {
       <div className="mt-3">
         <Button type="small" onClick={() => goTo(<DaySummary />)}>
           View day summary
+        </Button>
+        <Button
+          type="small"
+          className="ml-2"
+          onClick={() => goTo(<PlanCheck />)}
+        >
+          Plan check
         </Button>
       </div>
 
