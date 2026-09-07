@@ -1,9 +1,10 @@
 import { Booking } from '@/api/itinerary';
 import { Experience } from '@/api/ll';
-import { clashWindow } from '@/autopilot/overlap';
+import { findExistingLL } from '@/autopilot/automodify';
+import { clashablePlans, windowClash } from '@/autopilot/overlap';
 import { isTier1 } from '@/autopilot/priority';
 import { WatchTarget, targetApplies } from '@/autopilot/watchlist';
-import { ParkTime, parkDate } from '@/datetime';
+import { parkDate } from '@/datetime';
 
 export type PlanCheckLevel = 'blocker' | 'review' | 'ready';
 
@@ -21,8 +22,35 @@ export interface PlanCheckInput {
   bookingsRemaining: number;
   requireWholeParty: boolean;
   avoidOverlaps: boolean;
+  /**
+   * Rehearsal mode, and the most decisive configuration fact there is.
+   *
+   * `stillPermitted` in the provider opens with `!dryRun`, so it suppresses
+   * every booking, move and swap. A preflight blind to it certified "no
+   * configuration conflicts" for a plan that could not act at all.
+   */
+  dryRun: boolean;
+  /** Whether the day's Tier 1 restriction is already established as lifted. */
+  tierLimitLifted: boolean;
 }
 
+/**
+ * Whether Autopilot would consider this target for a *booking*.
+ *
+ * Deliberately the provider's own admission rule rather than "any action
+ * flag": `AutopilotProvider`'s armed set drops a paused target, requires
+ * `autoBook || bookThenMove`, and drops one already held. Plan Check used to
+ * test all four flags with no notion of paused or held, which made its Tier 1
+ * advice fire in configurations where no hold is possible -- including the
+ * one the advice tells you to adopt.
+ */
+function armedToBook(target: WatchTarget, input: PlanCheckInput) {
+  if (target.paused) return false;
+  if (!target.autoBook && !target.bookThenMove) return false;
+  return !findExistingLL(input.plans, target.experienceId, input.date);
+}
+
+/** Whether any action at all is armed, for the watch-only advisory. */
 const acts = (target: WatchTarget) =>
   !!(
     target.autoBook ||
@@ -36,13 +64,6 @@ const displayName = (target: WatchTarget, experiences: Experience[]) =>
   target.name ??
   target.experienceId;
 
-function timedPlansFor(date: string, plans: Booking[]) {
-  return plans.filter(
-    (plan): plan is Booking & { start: { date: string; time: ParkTime } } =>
-      !!plan.start.time && parkDate(plan.start) === date
-  );
-}
-
 /**
  * A configuration-only preflight for Autopilot.
  *
@@ -51,12 +72,19 @@ function timedPlansFor(date: string, plans: Booking[]) {
  * facts are deliberately re-read immediately before every real action by the
  * provider. A preflight that looked authoritative while making one more
  * request would be less safe, not more.
+ *
+ * The rule it must not break is that it never contradicts the engine. Where
+ * a question already has an answer in `overlap.ts` or `AutopilotProvider`,
+ * this calls it rather than re-deriving it -- every re-derivation here has
+ * drifted at least once.
  */
 export function checkPlan(input: PlanCheckInput): PlanCheckItem[] {
   const active = input.targets.filter(target =>
     targetApplies(target, input.parkId, input.date)
   );
   const items: PlanCheckItem[] = [];
+  const push = (level: PlanCheckLevel, text: string) =>
+    items.push({ level, text });
 
   if (active.length === 0) {
     return [
@@ -67,93 +95,157 @@ export function checkPlan(input: PlanCheckInput): PlanCheckItem[] {
     ];
   }
 
-  const armed = active.filter(acts);
-  if (armed.length === 0) {
-    items.push({
-      level: 'review',
-      text: 'This plan watches and alerts only; no booking, move, or swap action is armed.',
-    });
+  // Reported rather than assumed away. The tipboard is empty on first paint,
+  // after every park or date change, and after a failed refresh -- and while
+  // it is, every per-attraction check below is skipped. Falling through to
+  // "no configuration conflicts" made the most reassuring verdict the one
+  // produced from the least information.
+  const tipboardLoaded = input.experiences.length > 0;
+  if (!tipboardLoaded) {
+    push(
+      'review',
+      'The tipboard for this park and date has not loaded, so per-attraction checks were skipped. Refresh the LL list and check again.'
+    );
   }
 
-  if (armed.length > 0 && input.bookingsRemaining <= 0) {
-    items.push({
-      level: 'blocker',
-      text: 'Today’s Autopilot action budget is exhausted. Add more actions before enabling it.',
-    });
+  if (input.dryRun) {
+    push(
+      'review',
+      'Dry run is on. Autopilot will evaluate and log every action but book, move, and swap nothing.'
+    );
   }
 
+  const armedAtAll = active.filter(acts);
+  if (armedAtAll.length === 0) {
+    push(
+      'review',
+      'This plan watches and alerts only; no booking, move, or swap action is armed.'
+    );
+  }
+
+  if (armedAtAll.length > 0 && input.bookingsRemaining <= 0) {
+    push(
+      'blocker',
+      'Today’s Autopilot action budget is exhausted. Add more actions before enabling it.'
+    );
+  }
+
+  const missing = new Set<string>();
   for (const target of active) {
     const name = displayName(target, input.experiences);
     if (
-      input.experiences.length > 0 &&
+      tipboardLoaded &&
       !input.experiences.some(exp => exp.id === target.experienceId)
     ) {
-      items.push({
-        level: 'blocker',
-        text: `${name} is not on the loaded tipboard, so it cannot be watched or acted on.`,
-      });
+      missing.add(target.experienceId);
+      push(
+        'blocker',
+        `${name} is not on the loaded tipboard, so it cannot be watched or acted on.`
+      );
     }
     if (acts(target) && target.paused) {
-      items.push({
-        level: 'review',
-        text: `${name} has an action armed but is paused; it will alert only until resumed.`,
-      });
+      push(
+        'review',
+        `${name} has an action armed but is paused; it will alert only until resumed.`
+      );
     }
     if (target.after && target.before && +target.after > +target.before) {
-      items.push({
-        level: 'blocker',
-        text: `${name} has an impossible return window: its earliest time is after its latest time.`,
-      });
+      push(
+        'blocker',
+        `${name} has an impossible return window: its earliest time is after its latest time.`
+      );
     }
   }
 
-  // A bounded window can be inspected without guessing an offer. Flag only a
-  // real overlap with a currently held plan, not an open-ended preference.
-  for (const target of armed) {
-    const { after, before } = target;
-    if (!after || !before || +after > +before) {
-      continue;
-    }
-    const conflict = timedPlansFor(input.date, input.plans).find(plan => {
-      const { from, to } = clashWindow(plan);
-      return +after < +to && +before > +from;
-    });
-    if (conflict) {
-      items.push({
-        level: 'review',
-        text: `${displayName(target, input.experiences)}’s return window overlaps ${conflict.name}. Check whether enough of the window remains practical.`,
+  // Only when the setting that acts on it is on: with Avoid clashes off the
+  // provider short-circuits before looking at plans at all, so warning about
+  // an overlap here contradicted the item printed two rows below.
+  if (input.avoidOverlaps) {
+    for (const target of armedAtAll) {
+      const { after, before } = target;
+      if (!after || !before || +after > +before) continue;
+      if (missing.has(target.experienceId)) continue;
+      // The target's own reservation is excluded the way the provider excludes
+      // it: moving a booking necessarily clashes with itself.
+      const own = findExistingLL(input.plans, target.experienceId, input.date);
+      const candidates = clashablePlans(input.plans, {
+        date: input.date,
+        ...(own ? { ignoreIds: [own.id] } : {}),
       });
+      const name = displayName(target, input.experiences);
+      const covered = candidates.find(
+        plan => windowClash({ after, before }, plan).covers
+      );
+      if (covered) {
+        push(
+          'blocker',
+          `${name}’s entire return window falls inside the protected time around ${covered.name}, so every time it allows would be refused. Widen the window or turn off Avoid clashes.`
+        );
+        continue;
+      }
+      const overlapping = candidates.find(
+        plan => windowClash({ after, before }, plan).overlaps
+      );
+      if (overlapping) {
+        push(
+          'review',
+          `${name}’s return window overlaps the protected time around ${overlapping.name}. Part of the window is still usable.`
+        );
+      }
     }
   }
 
-  const tierOneArmed = armed.filter(target => {
-    const exp = input.experiences.find(e => e.id === target.experienceId);
-    return !!exp && isTier1(exp);
-  });
-  if (tierOneArmed.length > 1 && !active.some(target => target.passkey)) {
-    items.push({
-      level: 'review',
-      text: 'More than one Tier 1 target is armed. Autopilot may hold a lower-priority one for a better imminent drop.',
+  // Gated the way the provider gates the hold itself: it applies only to a
+  // booking, only on the current park day, and only while the Tier 1 limit is
+  // still in force. A configured passkey does not lift it -- only a spent
+  // entitlement does, which is what `tierLimitLifted` reports.
+  if (input.date === parkDate() && !input.tierLimitLifted) {
+    const tierOneArmed = active.filter(target => {
+      if (!armedToBook(target, input)) return false;
+      const exp = input.experiences.find(e => e.id === target.experienceId);
+      return !!exp && isTier1(exp);
     });
+    if (tierOneArmed.length > 1) {
+      push(
+        'review',
+        'More than one Tier 1 target is armed for booking. Autopilot may hold a lower-priority one back for a better imminent drop. Pausing the one you want less removes the hold.'
+      );
+    }
   }
-  if (!input.requireWholeParty && armed.length > 0) {
-    items.push({
-      level: 'review',
-      text: 'Whole party only is off. An eligible subset of the saved party may receive a Lightning Lane.',
-    });
+
+  if (!input.requireWholeParty && armedAtAll.length > 0) {
+    push(
+      'review',
+      'Whole party only is off. An eligible subset of the saved party may receive a Lightning Lane.'
+    );
   }
-  if (!input.avoidOverlaps && armed.length > 0) {
-    items.push({
-      level: 'review',
-      text: 'Avoid clashes is off. Autopilot may take a return time that overlaps an existing plan.',
-    });
+  if (!input.avoidOverlaps && armedAtAll.length > 0) {
+    push(
+      'review',
+      'Avoid clashes is off. Autopilot may take a return time that overlaps an existing plan.'
+    );
   }
 
   if (items.length === 0) {
-    items.push({
-      level: 'ready',
-      text: 'This plan has no configuration conflicts. Eligibility, inventory, and the offer’s real return time will still be checked before every action.',
-    });
+    return [
+      {
+        level: 'ready',
+        text: 'This plan has no configuration conflicts. Eligibility, inventory, and the offer’s real return time will still be checked before every action.',
+      },
+    ];
   }
-  return items;
+
+  // Blockers first, so the heading's count matches the rows under it. Stable
+  // within a level, so the per-target order stays the order they were checked.
+  const rank: Record<PlanCheckLevel, number> = {
+    blocker: 0,
+    review: 1,
+    ready: 2,
+  };
+  return items
+    .map((item, index) => ({ item, index }))
+    .sort(
+      (a, b) => rank[a.item.level] - rank[b.item.level] || a.index - b.index
+    )
+    .map(({ item }) => item);
 }
