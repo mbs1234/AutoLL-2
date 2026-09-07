@@ -14,6 +14,40 @@ import { WatchTarget, inWindow } from './watchlist';
  */
 export const MIN_IMPROVEMENT_MINUTES = 30;
 
+/**
+ * The smallest gain a search the user named a time for will accept.
+ *
+ * One minute rather than zero: a "move" to the same time is not a move, and
+ * spending a modify to achieve nothing is the one outcome worse than not
+ * moving. What is *wanted* is decided by the target's bounds, which
+ * `inWindow` already enforces in both directions; this only rules out the
+ * no-op.
+ */
+export const MIN_TARGETED_IMPROVEMENT_MINUTES = 1;
+
+/**
+ * The bar this move has to clear.
+ *
+ * A target may ask for a lower bar than the unattended default, because a
+ * person standing in front of the screen asking for a particular slot is not
+ * the case the 30-minute rule was written for. It may not ask for a *higher*
+ * one, and it may not ask for zero or a negative -- clamped here rather than
+ * at the storage boundary so that every caller is covered, including a
+ * hand-edited watch list.
+ */
+export function improvementBar(target: {
+  minImprovementMinutes?: number;
+}): number {
+  const asked = target.minImprovementMinutes;
+  if (asked === undefined || !Number.isFinite(asked)) {
+    return MIN_IMPROVEMENT_MINUTES;
+  }
+  return Math.min(
+    MIN_IMPROVEMENT_MINUTES,
+    Math.max(MIN_TARGETED_IMPROVEMENT_MINUTES, asked)
+  );
+}
+
 export type ModifySkipReason =
   | 'not-enabled'
   | 'no-longer-wanted'
@@ -84,7 +118,7 @@ export function shouldModify(
   existing: LLMP | undefined,
   candidateTime: ParkTime,
   ledger: Pick<AutoBookLedger, 'hasAttempted' | 'remaining'>,
-  minImprovementMinutes = MIN_IMPROVEMENT_MINUTES
+  minImprovementMinutes = improvementBar(target)
 ): { ok: true; existing: LLMP } | { ok: false; reason: ModifySkipReason } {
   // bookThenMove implies moving.
   if (!target.autoModify && !target.bookThenMove) {
@@ -170,7 +204,7 @@ export async function attemptAutoModify(
     stillWanted,
     guests,
     ledger,
-    minImprovementMinutes = MIN_IMPROVEMENT_MINUTES,
+    minImprovementMinutes = improvementBar(target),
     clashes,
   }: AutoModifyDeps
 ): Promise<ModifyOutcome> {

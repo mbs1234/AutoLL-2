@@ -5,8 +5,10 @@ import { DateTime, ParkTime } from '@/datetime';
 import { AutoBookLedger } from './autobook';
 import {
   MIN_IMPROVEMENT_MINUTES,
+  MIN_TARGETED_IMPROVEMENT_MINUTES,
   attemptAutoModify,
   findExistingLL,
+  improvementBar,
   improvementMinutes,
   shouldModify,
 } from './automodify';
@@ -393,5 +395,130 @@ describe('attemptAutoModify()', () => {
       status: 'skipped',
       reason: 'offer-not-an-improvement',
     });
+  });
+});
+
+/**
+ * The bar a targeted search asks for.
+ *
+ * The 30-minute default exists to stop an unattended Autopilot churning a
+ * reservation for a few minutes at a time. A search someone started by naming
+ * a time is the opposite case, so the target may ask for a lower bar -- and
+ * only a lower one.
+ */
+describe('improvementBar()', () => {
+  it('defaults to the unattended bar', () => {
+    expect(improvementBar({})).toBe(MIN_IMPROVEMENT_MINUTES);
+    expect(improvementBar({ minImprovementMinutes: undefined })).toBe(
+      MIN_IMPROVEMENT_MINUTES
+    );
+  });
+
+  it('honours a lower bar a target asked for', () => {
+    expect(improvementBar({ minImprovementMinutes: 5 })).toBe(5);
+    expect(improvementBar({ minImprovementMinutes: 1 })).toBe(1);
+  });
+
+  // A target must not be able to make a move free: a "move" to the same time
+  // spends a modify to achieve nothing, and a negative bar would let the
+  // engine trade down without the bounds having admitted the new time.
+  it('never goes below one minute', () => {
+    for (const asked of [0, -600]) {
+      expect(improvementBar({ minImprovementMinutes: asked })).toBe(
+        MIN_TARGETED_IMPROVEMENT_MINUTES
+      );
+    }
+  });
+
+  // Raising it is not a thing a target gets to do, so a hand-edited watch
+  // list cannot make Autopilot pickier than the rule it documents.
+  it('never goes above the unattended bar', () => {
+    expect(improvementBar({ minImprovementMinutes: 90 })).toBe(
+      MIN_IMPROVEMENT_MINUTES
+    );
+  });
+
+  // Neither infinity is a request; both are garbage, and garbage falls back
+  // to the strict default rather than to the permissive one.
+  it('falls back to the default for a non-finite ask', () => {
+    for (const asked of [Infinity, -Infinity, NaN]) {
+      expect(improvementBar({ minImprovementMinutes: asked })).toBe(
+        MIN_IMPROVEMENT_MINUTES
+      );
+    }
+  });
+});
+
+describe('a targeted modify', () => {
+  const held = existingLL(at(11, 20));
+  const windowed = (rest: Partial<WatchTarget> = {}) =>
+    target({ after: at(10, 45), before: at(11, 15), ...rest });
+
+  // The case the 30-minute bar refuses and a named target should not: holding
+  // 11:20, asking for 11:00, a twenty-minute gain.
+  it('accepts a gain under thirty minutes when the target named a time', () => {
+    expect(
+      shouldModify(
+        windowed({ minImprovementMinutes: 1 }),
+        held,
+        at(11),
+        new AutoBookLedger()
+      )
+    ).toMatchObject({ ok: true });
+  });
+
+  it('still refuses the same gain without a named bar', () => {
+    expect(
+      shouldModify(windowed(), held, at(11), new AutoBookLedger())
+    ).toMatchObject({ ok: false, reason: 'not-an-improvement' });
+  });
+
+  // The bounds decide what is wanted, not the bar. A time outside them is
+  // refused however small the bar is.
+  it('still refuses a time outside the target window', () => {
+    expect(
+      shouldModify(
+        windowed({ minImprovementMinutes: 1 }),
+        held,
+        at(9),
+        new AutoBookLedger()
+      )
+    ).toMatchObject({ ok: false, reason: 'offer-outside-window' });
+  });
+
+  // Direction is still the bar's job, and one minute is still positive: a
+  // later time can never clear it, whatever the window admits.
+  it('never moves to a later time', () => {
+    expect(
+      shouldModify(
+        target({
+          after: at(11),
+          before: at(15),
+          minImprovementMinutes: 1,
+        }),
+        held,
+        at(14),
+        new AutoBookLedger()
+      )
+    ).toMatchObject({ ok: false, reason: 'not-an-improvement' });
+  });
+
+  // The post-offer re-check reads the same bar, so a targeted search is not
+  // stopped by the very rule it relaxed one step earlier.
+  it('commits an offer that clears the target bar', async () => {
+    const ledger = new AutoBookLedger();
+    const outcome = await attemptAutoModify(
+      windowed({ minImprovementMinutes: 1 }),
+      experience,
+      held,
+      at(11),
+      {
+        createModifyOffer: async () => offerAt(at(11)),
+        book: async () => existingLL(at(11)),
+        guests: party(),
+        ledger,
+      }
+    );
+    expect(outcome).toMatchObject({ status: 'modified' });
   });
 });

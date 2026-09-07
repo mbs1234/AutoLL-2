@@ -18,6 +18,19 @@ export interface WatchTarget {
   experienceId: string;
   /** Human-readable fallback when Disney does not list this ID today. */
   name?: string;
+  /**
+   * Smallest gain, in minutes, worth moving this reservation for.
+   *
+   * Absent means the engine's own default (30), which exists to stop an
+   * unattended Autopilot churning a reservation for a few minutes at a time.
+   * A search the user started by naming a time is the opposite case -- they
+   * are standing there asking for that slot -- so it supplies a low value and
+   * the bounds do the work of deciding what is acceptable.
+   *
+   * Only ever set by a foreground search. An Autopilot watch-list target
+   * leaves it undefined and behaves exactly as before.
+   */
+  minImprovementMinutes?: number;
   /** A plan belongs to one park and one park day; absent means legacy/global. */
   parkId?: string;
   date?: string;
@@ -195,6 +208,7 @@ interface StoredTarget {
   passkey?: boolean;
   after?: string;
   before?: string;
+  minImprovementMinutes?: number;
   /**
    * Persisted so a party set up once keeps working all day. Safe because the
    * autopilot on/off state is deliberately *not* persisted -- nothing can book
@@ -246,6 +260,10 @@ export function loadWatchList(
         ...(typeof t.rank === 'number' && Number.isFinite(t.rank)
           ? { rank: t.rank }
           : {}),
+        ...(typeof t.minImprovementMinutes === 'number' &&
+        Number.isFinite(t.minImprovementMinutes)
+          ? { minImprovementMinutes: t.minImprovementMinutes }
+          : {}),
         ...(t.passkey === true ? { passkey: true } : {}),
         ...(after ? { after } : {}),
         ...(before ? { before } : {}),
@@ -274,6 +292,9 @@ export function saveWatchList(
       ...(t.parkId ? { parkId: t.parkId } : {}),
       ...(t.date ? { date: t.date } : {}),
       ...(typeof t.rank === 'number' ? { rank: t.rank } : {}),
+      ...(typeof t.minImprovementMinutes === 'number'
+        ? { minImprovementMinutes: t.minImprovementMinutes }
+        : {}),
       ...(t.passkey ? { passkey: true } : {}),
       ...(t.after ? { after: String(t.after) } : {}),
       ...(t.before ? { before: String(t.before) } : {}),
