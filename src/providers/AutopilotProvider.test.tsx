@@ -396,7 +396,7 @@ describe('AutopilotProvider', () => {
     await enable();
     await waitFor(() => expect(fireAlert).toHaveBeenCalledTimes(1));
     expect(fireAlert).toHaveBeenCalledWith(
-      expect.objectContaining({ tag: `bg1-autopilot-${TODAY}-${BZ}` })
+      expect.objectContaining({ tag: `autoll2-autopilot-${TODAY}-${BZ}` })
     );
   });
 
@@ -411,7 +411,7 @@ describe('AutopilotProvider', () => {
     await waitFor(() => expect(fireAlert).toHaveBeenCalledTimes(1));
     expect(fireAlert).toHaveBeenCalledWith(
       expect.objectContaining({
-        tag: `bg1-autopilot-${TOMORROW}-${BZ}`,
+        tag: `autoll2-autopilot-${TOMORROW}-${BZ}`,
         body: expect.stringContaining('on '),
       })
     );
