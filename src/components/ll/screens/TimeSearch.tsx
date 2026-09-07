@@ -1,7 +1,7 @@
 import { use, useState } from 'react';
 
 import { LLMP } from '@/api/itinerary';
-import { SearchGoal } from '@/autopilot/timesearch';
+import { SearchGoal, SearchStop } from '@/autopilot/timesearch';
 import useTimeSearch from '@/autopilot/useTimeSearch';
 import { parseBound } from '@/autopilot/watchlist';
 import Button from '@/components/Button';
@@ -9,6 +9,16 @@ import Screen from '@/components/Screen';
 import { Time } from '@/components/Time';
 import ClientsContext from '@/contexts/ClientsContext';
 import PlansContext from '@/contexts/PlansContext';
+
+/** What to say when the search ends. `failed` carries an error and is built inline. */
+const STOPPED: Record<Exclude<SearchStop, 'failed'>, string> = {
+  'goal-met': 'That will do — the reservation is at the time you asked for.',
+  'nothing-better': 'Nothing better is on offer right now.',
+  'not-modifiable': 'This reservation can no longer be changed.',
+  unconfirmed:
+    'The move went through, but Plans has not caught up yet. Refresh Plans to confirm the new time.',
+  stopped: 'Stopped.',
+};
 
 /**
  * An automated search for a better return time on a reservation already held.
@@ -147,15 +157,9 @@ export default function TimeSearch({ booking }: { booking: LLMP }) {
 
       {search.stop && !search.unresolved && (
         <p className="mt-3 text-sm text-gray-600">
-          {search.stop === 'goal-met'
-            ? 'That will do — the reservation is at the time you asked for.'
-            : search.stop === 'nothing-better'
-              ? 'Nothing better is on offer right now.'
-              : search.stop === 'not-modifiable'
-                ? 'This reservation can no longer be changed.'
-                : search.stop === 'failed'
-                  ? `Stopped after repeated errors${search.lastError ? `: ${search.lastError}` : ''}.`
-                  : 'Stopped.'}
+          {search.stop === 'failed'
+            ? `Stopped after repeated errors${search.lastError ? `: ${search.lastError}` : ''}.`
+            : STOPPED[search.stop]}
         </p>
       )}
     </Screen>

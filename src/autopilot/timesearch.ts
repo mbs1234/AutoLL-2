@@ -111,6 +111,8 @@ export type SearchStop =
   | 'nothing-better'
   | 'failed'
   | 'not-modifiable'
+  /** Moved, but Plans never showed it, so the search stopped rather than wait. */
+  | 'unconfirmed'
   | 'stopped';
 
 /** Whether a move is in the direction that gives up an earlier reservation. */
@@ -201,6 +203,29 @@ export class CommitGuard {
     if (this.#phase !== 'awaiting') return;
     this.#phase = 'idle';
     this.#requested = undefined;
+  }
+
+  /**
+   * Clear the state that is meant to last one run.
+   *
+   * `declined` and the commit count are per-run limits -- a slot Disney could
+   * not honour an hour ago may be free now, and six moves is a statement
+   * about one search not converging, not about the afternoon. Without this
+   * they survived Stop and Start on the same screen, so a restarted search
+   * could refuse a time that had since become available, or stop immediately
+   * because a previous run had used the budget.
+   *
+   * Returns false, and changes nothing, once the phase is `unknown`: that one
+   * is not per-run and must outlive any number of restarts. Only leaving the
+   * screen clears it, by which point the user has been told to check Plans.
+   */
+  reset(): boolean {
+    if (this.#phase === 'unknown') return false;
+    this.#phase = 'idle';
+    this.#requested = undefined;
+    this.#commits = 0;
+    this.declined.clear();
+    return true;
   }
 
   /**

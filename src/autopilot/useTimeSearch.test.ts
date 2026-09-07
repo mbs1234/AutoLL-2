@@ -7,7 +7,11 @@ import { DateTime, ParkTime } from '@/datetime';
 import { TODAY } from '@/testing';
 
 import { SearchGoal } from './timesearch';
-import useTimeSearch, { CYCLE_MS, TimeSearchDeps } from './useTimeSearch';
+import useTimeSearch, {
+  CYCLE_MS,
+  MAX_SETTLE_CYCLES,
+  TimeSearchDeps,
+} from './useTimeSearch';
 
 jest.useFakeTimers();
 
@@ -205,5 +209,60 @@ describe('useTimeSearch', () => {
     });
     act(() => result.current.start());
     await waitFor(() => expect(result.current.stop).toBe('goal-met'));
+  });
+});
+
+describe('useTimeSearch restarting', () => {
+  // A slot Disney could not honour an hour ago may be free now, and the
+  // budget is a statement about one search rather than about the afternoon.
+  it('forgets declined slots and the commit budget on a new search', async () => {
+    const changeTime = jest.fn(async () => offerAt(at(13)));
+    const { result } = setup({ times: [[at(11)]], quoted: changeTime });
+    act(() => result.current.start());
+    await waitFor(() =>
+      expect(result.current.guard.declined.has(+at(11))).toBe(true)
+    );
+    act(() => result.current.cancel());
+
+    act(() => result.current.start());
+    expect(result.current.guard.declined.size).toBe(0);
+    expect(result.current.guard.commits).toBe(0);
+    expect(result.current.cycles).toBe(0);
+    expect(result.current.moves).toBe(0);
+    await runCycles(2);
+    expect(changeTime.mock.calls.length).toBeGreaterThan(1);
+  });
+
+  // Restarting must not be a way around the one lock that is not per-run.
+  it('will not restart after an unknown outcome', async () => {
+    const commit = jest.fn(async () => {
+      throw new RequestError({ ok: false, status: 0, data: {} });
+    });
+    const { result } = setup({ commit });
+    act(() => result.current.start());
+    await waitFor(() => expect(result.current.guard.phase).toBe('unknown'));
+    act(() => result.current.start());
+    expect(result.current.running).toBe(false);
+    await runCycles(2);
+    expect(commit).toHaveBeenCalledTimes(1);
+  });
+
+  // The move happened -- `book()` returned -- so this is not the unknown
+  // case. Plans simply has not caught up, and saying so beats a screen that
+  // says "Checking..." over a reservation that already moved.
+  it('stops rather than waiting forever for Plans to agree', async () => {
+    let polls = 0;
+    const { result } = setup({
+      // Plans keeps reporting the old time however many times it is asked.
+      plans: jest.fn(async () => {
+        ++polls;
+        return [booking(at(15))];
+      }),
+    });
+    act(() => result.current.start());
+    await waitFor(() => expect(result.current.moves).toBe(1));
+    await runCycles(MAX_SETTLE_CYCLES + 2);
+    expect(result.current.stop).toBe('unconfirmed');
+    expect(polls).toBeGreaterThan(MAX_SETTLE_CYCLES);
   });
 });

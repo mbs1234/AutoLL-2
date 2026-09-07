@@ -39,6 +39,18 @@ export const MAX_BARREN_CYCLES = 200;
 /** Moves per run. A search that has moved this often is not converging. */
 export const MAX_COMMITS = 6;
 
+/**
+ * Cycles spent waiting for Plans to show a move that was accepted.
+ *
+ * A committed move is not settled until the itinerary agrees, and the
+ * itinerary lags -- `autobook.ts` needs two agreeing reads for the same
+ * reason. But the wait cannot be unbounded: Disney can be inconsistent for
+ * longer than anyone will sit and watch a screen say "Checking...". Ten
+ * cycles is a minute at `CYCLE_MS`, after which the move is reported as made
+ * but unconfirmed, which is the truth.
+ */
+export const MAX_SETTLE_CYCLES = 10;
+
 export interface TimeSearchState {
   running: boolean;
   held?: ParkTime;
@@ -125,9 +137,21 @@ export default function useTimeSearch(deps: TimeSearchDeps) {
 
   const start = useCallback(() => {
     if (runningRef.current) return;
-    if (!guardRef.current.idle) return;
+    // Clears the per-run limits, and refuses when a previous commit's outcome
+    // is still unknown -- that lock is not per-run and a restart must not be
+    // a way around it.
+    if (!guardRef.current.reset()) return;
+    acceptedRef.current = false;
     runningRef.current = true;
-    setState(s => ({ ...s, running: true, stop: undefined }));
+    setState(s => ({
+      ...s,
+      running: true,
+      stop: undefined,
+      pending: undefined,
+      lastError: undefined,
+      cycles: 0,
+      moves: 0,
+    }));
     void holdScreenAwake(wakeOwner);
   }, [wakeOwner]);
 
@@ -136,6 +160,7 @@ export default function useTimeSearch(deps: TimeSearchDeps) {
     let cancelled = false;
     let failures = 0;
     let barren = 0;
+    let settling = 0;
     let offer: Offer<LLMP> | undefined;
 
     /**
@@ -188,9 +213,17 @@ export default function useTimeSearch(deps: TimeSearchDeps) {
       if (guard.phase === 'awaiting') {
         const now = await readHeld();
         if (now && guard.requested && +now.start.time === +guard.requested) {
+          settling = 0;
           guard.confirm();
           setState(s => ({ ...s, held: now.start.time }));
+          return;
         }
+        // Bounded, because the alternative is a screen that says "Checking..."
+        // forever over a move that already happened. The commit succeeded --
+        // `book()` returned -- so this is not the unknown-outcome case; it is
+        // only that Plans has not caught up, and saying so is better than
+        // waiting silently.
+        if (++settling >= MAX_SETTLE_CYCLES) stop('unconfirmed');
         return;
       }
       if (!guard.idle) return;

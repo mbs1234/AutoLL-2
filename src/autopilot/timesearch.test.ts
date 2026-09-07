@@ -294,3 +294,48 @@ describe('CommitGuard', () => {
     expect(guard.commits).toBe(0);
   });
 });
+
+/**
+ * Restarting is a new run, so the limits that say "per run" have to mean it.
+ */
+describe('CommitGuard.reset()', () => {
+  it('clears the declined slots a previous run collected', () => {
+    const guard = new CommitGuard();
+    guard.begin(at(11));
+    guard.decline(at(11));
+    expect(guard.reset()).toBe(true);
+    expect(guard.declined.size).toBe(0);
+  });
+
+  it('clears the commit budget a previous run spent', () => {
+    const guard = new CommitGuard();
+    guard.begin(at(11));
+    guard.markCommitted();
+    guard.confirm();
+    expect(guard.commits).toBe(1);
+    guard.reset();
+    expect(guard.commits).toBe(0);
+  });
+
+  it('returns to idle from any resettable phase', () => {
+    const guard = new CommitGuard();
+    guard.begin(at(11));
+    guard.markCommitted();
+    guard.reset();
+    expect(guard.idle).toBe(true);
+    expect(guard.requested).toBeUndefined();
+  });
+
+  // The one lock that is not per-run: a commit whose outcome nobody can
+  // establish must not be cleared by pressing the button again.
+  it('refuses to clear an unknown outcome, and changes nothing', () => {
+    const guard = new CommitGuard();
+    guard.begin(at(11));
+    guard.decline(at(11));
+    guard.begin(at(12));
+    guard.markUnknown();
+    expect(guard.reset()).toBe(false);
+    expect(guard.phase).toBe('unknown');
+    expect(guard.declined.has(+at(11))).toBe(true);
+  });
+});
