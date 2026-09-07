@@ -1,7 +1,10 @@
 import { use, useEffect, useRef, useState } from 'react';
 
 import { Experience } from '@/api/ll';
-import { findExistingLL } from '@/autopilot/automodify';
+import {
+  MIN_TARGETED_IMPROVEMENT_MINUTES,
+  findExistingLL,
+} from '@/autopilot/automodify';
 import {
   clearPendingSearch,
   loadPendingSearch,
@@ -80,6 +83,7 @@ export function NextLL({ ref }: Partial<HomeTabProps> = {}) {
     use(AutopilotContext);
 
   const [choice, setChoice] = useState('');
+  const [after, setAfter] = useState('');
   const [before, setBefore] = useState('');
   // What an interrupted search was after, read once on mount. Cleared as soon
   // as anything is started or dismissed, so it only ever describes a search
@@ -107,12 +111,26 @@ export function NextLL({ ref }: Partial<HomeTabProps> = {}) {
   // `replaceTargets` rather than `addTarget`: this screen watches exactly one
   // attraction and names it, so a target from an earlier search must not
   // survive alongside the new one.
-  function begin(experienceId: string, beforeText: string) {
-    const bound = parseBound(beforeText);
+  function begin(experienceId: string, afterText: string, beforeText: string) {
+    const lower = parseBound(afterText);
+    const upper = parseBound(beforeText);
     const target: WatchTarget = {
       experienceId,
       bookThenMove: true,
-      ...(bound ? { before: bound } : {}),
+      ...(lower ? { after: lower } : {}),
+      ...(upper ? { before: upper } : {}),
+      // Naming a time is the whole difference between this and an unattended
+      // watch. The 30-minute bar exists to stop Autopilot churning a
+      // reservation on its own; someone standing here asking for a slot has
+      // already decided it is worth it, so any real gain counts. The bounds
+      // above are what decide whether a time is wanted -- and `inWindow`
+      // reads them in both directions, so a window around a *later* time is
+      // admitted by the rules. What the search can actually reach is another
+      // matter: the tipboard offers one time, the earliest, so a later slot
+      // is only found if it happens to be that.
+      ...(lower || upper
+        ? { minImprovementMinutes: MIN_TARGETED_IMPROVEMENT_MINUTES }
+        : {}),
     };
     replaceTargets([target]);
     clearPendingSearch();
@@ -122,15 +140,16 @@ export function NextLL({ ref }: Partial<HomeTabProps> = {}) {
 
   function start() {
     if (!choice) return;
-    begin(choice, before);
+    begin(choice, after, before);
   }
 
   function resume() {
     if (!pending) return;
     setChoice(pending.experienceId);
-    // The stored bound carries seconds; the time input does not want them.
+    // The stored bounds carry seconds; the time inputs do not want them.
+    setAfter(pending.after?.slice(0, 5) ?? '');
     setBefore(pending.before?.slice(0, 5) ?? '');
-    begin(pending.experienceId, pending.before ?? '');
+    begin(pending.experienceId, pending.after ?? '', pending.before ?? '');
   }
 
   function dismissPending() {
@@ -162,6 +181,7 @@ export function NextLL({ ref }: Partial<HomeTabProps> = {}) {
       if (enabled && target) {
         savePendingSearch({
           experienceId: target.experienceId,
+          ...(target.after ? { after: String(target.after) } : {}),
           ...(target.before ? { before: String(target.before) } : {}),
         });
       }
@@ -215,6 +235,20 @@ export function NextLL({ ref }: Partial<HomeTabProps> = {}) {
                 </option>
               ))}
             </select>
+          </label>
+
+          <label className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="font-semibold">Return after</span>
+            <input
+              type="time"
+              aria-label="Earliest acceptable return time"
+              className="rounded-sm border border-gray-300 px-1 py-0.5"
+              value={after}
+              onChange={e => setAfter(e.target.value)}
+            />
+            <span className="text-sm text-gray-600">
+              optional &mdash; set both to aim at a particular time
+            </span>
           </label>
 
           <label className="mt-3 flex flex-wrap items-center gap-2">

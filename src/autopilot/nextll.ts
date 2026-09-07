@@ -19,6 +19,7 @@ export const NEXTLL_PENDING_KEY = 'autoll2.nextll.pending';
  */
 export interface PendingSearch {
   experienceId: string;
+  after?: string;
   before?: string;
 }
 

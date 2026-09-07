@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { mk, wdw } from '@/__fixtures__/resort';
 import { Booking } from '@/api/itinerary';
 import { Experience } from '@/api/ll';
+import { MIN_TARGETED_IMPROVEMENT_MINUTES } from '@/autopilot/automodify';
 import { NEXTLL_PENDING_KEY, PendingSearch } from '@/autopilot/nextll';
 import { PollerStatus } from '@/autopilot/usePoller';
 import {
@@ -227,7 +228,12 @@ describe('NextLL', () => {
     });
     fireEvent.click(screen.getByText('Find it'));
     expect(replaceTargets).toHaveBeenCalledWith([
-      { experienceId: BZ, bookThenMove: true, before: new ParkTime(13) },
+      {
+        experienceId: BZ,
+        bookThenMove: true,
+        before: new ParkTime(13),
+        minImprovementMinutes: MIN_TARGETED_IMPROVEMENT_MINUTES,
+      },
     ]);
   });
 
@@ -377,7 +383,12 @@ describe('NextLL on returning to the tab', () => {
     const { replaceTargets, setEnabled } = setup();
     fireEvent.click(screen.getByText('Resume'));
     expect(replaceTargets).toHaveBeenCalledWith([
-      { experienceId: BZ, bookThenMove: true, before: new ParkTime(13) },
+      {
+        experienceId: BZ,
+        bookThenMove: true,
+        before: new ParkTime(13),
+        minImprovementMinutes: MIN_TARGETED_IMPROVEMENT_MINUTES,
+      },
     ]);
     expect(setEnabled).toHaveBeenCalledWith(true);
     expect(kvdb.getDaily(NEXTLL_PENDING_KEY)).toBeUndefined();
@@ -419,5 +430,44 @@ describe('NextLL on returning to the tab', () => {
     setup();
     expect(screen.queryByText(/Still looking for/)).not.toBeInTheDocument();
     expect(kvdb.getDaily(NEXTLL_PENDING_KEY)).toBeDefined();
+  });
+});
+
+/**
+ * The lower bound, which is what lets a search aim at a time rather than
+ * just "as early as possible".
+ */
+describe('NextLL aiming at a particular time', () => {
+  it('passes both bounds through, with the relaxed bar', () => {
+    const { replaceTargets } = setup();
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: BZ } });
+    fireEvent.change(screen.getByLabelText('Earliest acceptable return time'), {
+      target: { value: '10:45' },
+    });
+    fireEvent.change(screen.getByLabelText('Latest acceptable return time'), {
+      target: { value: '11:15' },
+    });
+    fireEvent.click(screen.getByText('Find it'));
+    expect(replaceTargets).toHaveBeenCalledWith([
+      {
+        experienceId: BZ,
+        bookThenMove: true,
+        after: new ParkTime(10, 45),
+        before: new ParkTime(11, 15),
+        minImprovementMinutes: MIN_TARGETED_IMPROVEMENT_MINUTES,
+      },
+    ]);
+  });
+
+  // No bound named means no time named, so the unattended rule stands: this
+  // is the "as early as possible" search, and it should not quietly become
+  // willing to move a reservation for two minutes.
+  it('leaves the bar alone when no time is named', () => {
+    const { replaceTargets } = setup();
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: BZ } });
+    fireEvent.click(screen.getByText('Find it'));
+    expect(replaceTargets).toHaveBeenCalledWith([
+      { experienceId: BZ, bookThenMove: true },
+    ]);
   });
 });
