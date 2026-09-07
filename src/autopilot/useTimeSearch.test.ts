@@ -266,3 +266,60 @@ describe('useTimeSearch restarting', () => {
     expect(polls).toBeGreaterThan(MAX_SETTLE_CYCLES);
   });
 });
+
+/**
+ * Stop, then Start, while a committed move has not yet appeared in Plans.
+ *
+ * The itinerary lags, so a fresh run would read the OLD time and decide
+ * again on top of a move that already landed. This is the sequence the whole
+ * guard exists to prevent, and the restart fix opened it.
+ */
+describe('useTimeSearch restarting mid-settle', () => {
+  /** Plans that keep reporting the old time, so the move never settles. */
+  function stubbornPlans(oldTime: ParkTime) {
+    return jest.fn(async () => [booking(oldTime)]);
+  }
+
+  it('does not decide again before Plans confirms a committed move', async () => {
+    const commit = jest.fn(async () => booking(at(11)));
+    const { result, deps } = setup({
+      held: at(15),
+      times: [[at(11)]],
+      commit,
+      plans: stubbornPlans(at(15)),
+    });
+    act(() => result.current.start());
+    await waitFor(() => expect(commit).toHaveBeenCalledTimes(1));
+    expect(result.current.guard.phase).toBe('awaiting');
+
+    act(() => result.current.cancel());
+    act(() => result.current.start());
+    // The lock survived the restart, so the run resumes settling rather than
+    // deciding from the stale time Plans is still reporting.
+    expect(result.current.guard.phase).toBe('awaiting');
+    await runCycles(3);
+    expect(commit).toHaveBeenCalledTimes(1);
+    expect(deps.changeTime).toHaveBeenCalledTimes(1);
+  });
+
+  it('carries on once Plans catches up', async () => {
+    let reported = at(15);
+    const commit = jest.fn(async () => {
+      reported = at(11);
+      return booking(at(11));
+    });
+    const { result } = setup({
+      held: at(15),
+      times: [[at(11)]],
+      commit,
+      plans: jest.fn(async () => [booking(reported)]),
+    });
+    act(() => result.current.start());
+    await waitFor(() => expect(commit).toHaveBeenCalledTimes(1));
+    act(() => result.current.cancel());
+    act(() => result.current.start());
+    await runCycles(2);
+    expect(result.current.guard.phase).not.toBe('awaiting');
+    expect(`${result.current.held}`).toBe('11:00:00');
+  });
+});

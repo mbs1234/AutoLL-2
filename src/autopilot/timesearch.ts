@@ -166,6 +166,18 @@ export class CommitGuard {
     return this.#phase === 'idle';
   }
 
+  /**
+   * Whether a run may begin.
+   *
+   * `awaiting` qualifies and `unknown` does not, and the difference is what
+   * can still be learned. An awaiting move only needs Plans to catch up, so a
+   * restarted run picks the wait back up and decides nothing until it does.
+   * An unknown one has no such answer coming.
+   */
+  get startable(): boolean {
+    return this.#phase !== 'unknown';
+  }
+
   /** Take the lock. False when anything is already in flight or unresolved. */
   begin(time: ParkTime): boolean {
     if (this.#phase !== 'idle') return false;
@@ -215,12 +227,28 @@ export class CommitGuard {
    * could refuse a time that had since become available, or stop immediately
    * because a previous run had used the budget.
    *
-   * Returns false, and changes nothing, once the phase is `unknown`: that one
-   * is not per-run and must outlive any number of restarts. Only leaving the
-   * screen clears it, by which point the user has been told to check Plans.
+   * Returns false, and changes nothing, from every phase but `idle` -- each
+   * for a reason a restart must not override:
+   *
+   * - `unknown`, because no evidence that could settle it ever arrives. Only
+   *   leaving the screen clears that, by which point the user has been told
+   *   to check Plans.
+   * - `awaiting`, because a move that succeeded but is not yet visible in
+   *   Plans is exactly the state where deciding again is dangerous. Clearing
+   *   it let Stop-then-Start hand a fresh run the *old* reservation time --
+   *   the itinerary lags -- and a second modification on top of a move that
+   *   had already landed. It is settled by `confirm()` when Plans agrees, or
+   *   by the caller's bounded wait giving up; a restart resumes that wait
+   *   rather than skipping it.
+   * - `committing`, for the same reason in a narrower window: Stop can land
+   *   between the request going out and its result, and the lock is the only
+   *   thing standing between that and a second one.
+   *
+   * So: only a settled guard may be cleared, which is the rule stated once
+   * rather than as a list of phases to remember.
    */
   reset(): boolean {
-    if (this.#phase === 'unknown') return false;
+    if (this.#phase !== 'idle') return false;
     this.#phase = 'idle';
     this.#requested = undefined;
     this.#commits = 0;

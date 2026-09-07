@@ -137,10 +137,13 @@ export default function useTimeSearch(deps: TimeSearchDeps) {
 
   const start = useCallback(() => {
     if (runningRef.current) return;
-    // Clears the per-run limits, and refuses when a previous commit's outcome
-    // is still unknown -- that lock is not per-run and a restart must not be
-    // a way around it.
-    if (!guardRef.current.reset()) return;
+    // Two different questions. `startable` is whether a run may begin at all:
+    // no, while a commit's outcome is unknown. `reset()` is whether the
+    // per-run limits are cleared: not while a committed move is still waiting
+    // on Plans, because that run is not finished -- the restart resumes its
+    // settle wait and decides nothing until the itinerary agrees.
+    if (!guardRef.current.startable) return;
+    guardRef.current.reset();
     acceptedRef.current = false;
     runningRef.current = true;
     setState(s => ({

@@ -317,13 +317,16 @@ describe('CommitGuard.reset()', () => {
     expect(guard.commits).toBe(0);
   });
 
-  it('returns to idle from any resettable phase', () => {
+  it('only clears a settled guard', () => {
     const guard = new CommitGuard();
     guard.begin(at(11));
-    guard.markCommitted();
-    guard.reset();
+    // In flight: Stop can land here, and the lock is the only thing between
+    // that and a second commit.
+    expect(guard.reset()).toBe(false);
+    expect(guard.phase).toBe('committing');
+    guard.release();
+    expect(guard.reset()).toBe(true);
     expect(guard.idle).toBe(true);
-    expect(guard.requested).toBeUndefined();
   });
 
   // The one lock that is not per-run: a commit whose outcome nobody can
@@ -337,5 +340,39 @@ describe('CommitGuard.reset()', () => {
     expect(guard.reset()).toBe(false);
     expect(guard.phase).toBe('unknown');
     expect(guard.declined.has(+at(11))).toBe(true);
+  });
+});
+
+/**
+ * The two phases a restart must not clear, and why they differ.
+ */
+describe('CommitGuard phases that survive a restart', () => {
+  it('will not clear a move that is still waiting on Plans', () => {
+    const guard = new CommitGuard();
+    guard.begin(at(11));
+    guard.markCommitted();
+    expect(guard.reset()).toBe(false);
+    expect(guard.phase).toBe('awaiting');
+    expect(guard.requested).toEqual(at(11));
+  });
+
+  // A run may still *begin* while awaiting -- it resumes the settle wait --
+  // whereas an unknown outcome bars starting at all.
+  it('is startable while awaiting, and not while unknown', () => {
+    const guard = new CommitGuard();
+    guard.begin(at(11));
+    guard.markCommitted();
+    expect(guard.startable).toBe(true);
+    guard.markUnknown();
+    expect(guard.startable).toBe(false);
+  });
+
+  it('becomes resettable once Plans confirms', () => {
+    const guard = new CommitGuard();
+    guard.begin(at(11));
+    guard.markCommitted();
+    guard.confirm();
+    expect(guard.reset()).toBe(true);
+    expect(guard.commits).toBe(0);
   });
 });
