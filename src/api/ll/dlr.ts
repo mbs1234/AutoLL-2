@@ -44,6 +44,34 @@ export interface BookingResponse {
 }
 
 export class LLClientDLR extends LLClient {
+  /**
+   * Booking is off here because it cannot work, not as a policy choice.
+   *
+   * `book()` below awaits `import('../diu')`, and `diu` is the one module
+   * upstream never publishes -- `.gitignore` excludes it and upstream's build
+   * deletes it. This fork ships a stub returning `{}` so the tree builds at
+   * all (see FORK.md), which is enough for WDW because WDW never imports it,
+   * and not enough for Disneyland because every DLR booking body is built
+   * from it. Upstream's own DLR booking has been broken since `3eaf2a4`.
+   *
+   * `book: true` sits on the base, restored for WDW's sake in `4638e90`, and
+   * was inherited here by omission -- so Disneyland rendered a Book button, a
+   * Modify button and a fully armable Autopilot over a path that dead-ends in
+   * a request with no credentials. Offering an action that cannot complete is
+   * worse than not offering it: the failure arrives after the drop, looking
+   * like Disney's refusal rather than a missing module.
+   *
+   * The rest matches the base: DLR has no pre-booking, no park-change on a
+   * modify, no return-time picker, and a party cap of 12.
+   */
+  readonly rules = {
+    book: false,
+    maxPartySize: 12,
+    parkModify: false,
+    prebook: false,
+    timeSelect: false,
+  };
+
   async experiences(park: Park) {
     return super.experiences(park, parkDate());
   }
@@ -91,7 +119,13 @@ export class LLClientDLR extends LLClient {
         selectedTime: nextAvailableTime ?? '08:00:00',
         ...(booking
           ? {
-              date: DateTime.now().date,
+              // The park day being modified, which is what Disney means by
+              // `date` -- not the calendar day. `parkDate()` shifts back
+              // before the 4am boundary and `DateTime.now().date` does not,
+              // so a modification made between midnight and 4am used to send
+              // tomorrow for a day Disney considers yesterday. WDW's modify
+              // path reads `booking.start.date` for the same reason.
+              date: parkDate(booking.start),
               modificationType:
                 experience.id === booking.experience.id ? 'TIME' : 'EXPERIENCE',
             }
@@ -144,7 +178,8 @@ export class LLClientDLR extends LLClient {
         ...(await diu(offer.id)),
         ...(offer.booking
           ? {
-              date: DateTime.now().date,
+              // The park day, as in `offer()` above.
+              date: parkDate(offer.booking.start),
               modificationType:
                 offer.booking.experience.id === offer.experience.id
                   ? 'TIME'
