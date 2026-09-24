@@ -655,14 +655,14 @@ Instrument these; do not model them from folklore.
 
 ## 12. Suggested schedule
 
-| When             | What                                              | Gate                                                             |
-| ---------------- | ------------------------------------------------- | ---------------------------------------------------------------- |
-| Week of Sept 8   | §1 missing IDs, §3 data, section-consistency test | `test:ci` green; the three attractions appear on their tipboards |
-| Sept 15 – 26     | Phase 1 (P1.1 window UI first)                    | Dry run shows `offer-outside-window` and overlap skips firing    |
-| Sept 29 – Oct 17 | Phase 2 cadence                                   | Learned-drop screen shows demotions; burst covers :45–:49        |
-| Oct 20 – Nov 14  | Phase 3 (P3.1 passkey, P3.5 live tiers)           | A simulated day books a passkey first and explains why           |
-| Nov 17 – Dec 5   | Phase 4 planner; P4.2 future-date booking         | A December plan built in November drives a dry run end to end    |
-| Dec 6 – trip     | Freeze. Full-day dry runs. Instrument §10.        | No code changes in the final two weeks                           |
+| When                | What                                              | Gate                                                             |
+| ------------------- | ------------------------------------------------- | ---------------------------------------------------------------- |
+| First               | §1 missing IDs, §3 data, section-consistency test | `test:ci` green; the three attractions appear on their tipboards |
+| Next                | Phase 1 (P1.1 window UI first)                    | Dry run shows `offer-outside-window` and overlap skips firing    |
+| Up to the test trip | Phase 2 cadence                                   | Learned-drop screen shows demotions; burst covers :45–:49        |
+| After it            | Phase 3 (P3.1 passkey, P3.5 live tiers)           | A simulated day books a passkey first and explains why           |
+| Before the freeze   | Phase 4 planner; P4.2 future-date booking         | A December plan built in November drives a dry run end to end    |
+| Freeze → trip       | Freeze. Full-day dry runs. Instrument §10.        | No code changes in the final two weeks                           |
 
 Each phase ships independently. If the schedule slips, Phase 4 is what to cut.
 **§1 must not slip** — three attractions, two of them headliners, are
